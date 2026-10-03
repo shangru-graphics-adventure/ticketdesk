@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ticketdesk</title>
+<style>
+:root{
+  --bg:#fbf7fa; --rail:#f5f0f5; --panel:#ffffff; --ink:#2b2a38; --muted:#77738a; --line:#ebe3ec; --hover:#f1e9f1; --sel:#fbe6ef;
+  --pink:#de6d97; --pink-soft:#fbe6ef; --pink-ink:#b23f6b;
+  --blue:#4a88d2; --blue-soft:#e6effb; --blue-ink:#2b66ad;
+  --lav:#9884d8; --lav-soft:#eeeafb; --lav-ink:#6955b4;
+  --amber:#d9982f; --amber-soft:#fcefd6; --amber-ink:#8f5a08;
+  --red:#d9443a; --red-soft:#fde3e1; --red-ink:#a3271f;
+  --shadow:0 1px 2px rgba(60,30,70,.05),0 4px 14px rgba(60,30,70,.06);
+  --rail-w:380px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#1b1a22; --rail:#201e29; --panel:#25232e; --ink:#e7e4ef; --muted:#9a95ac; --line:#37334a; --hover:#2e2a3a; --sel:#42263a;
+  --pink:#e57fa6; --pink-soft:#42263a; --pink-ink:#f3a6c4;
+  --blue:#6aa3e6; --blue-soft:#1f3048; --blue-ink:#9cc4f2;
+  --lav:#a996e6; --lav-soft:#2d2746; --lav-ink:#c8baf5;
+  --amber:#e0a84a; --amber-soft:#3d301a; --amber-ink:#f0c983;
+  --red:#e8675e; --red-soft:#43221f; --red-ink:#f4a59f;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);
+}}
+:root[data-theme="dark"]{
+  --bg:#1b1a22; --rail:#201e29; --panel:#25232e; --ink:#e7e4ef; --muted:#9a95ac; --line:#37334a; --hover:#2e2a3a; --sel:#42263a;
+  --pink:#e57fa6; --pink-soft:#42263a; --pink-ink:#f3a6c4;
+  --blue:#6aa3e6; --blue-soft:#1f3048; --blue-ink:#9cc4f2;
+  --lav:#a996e6; --lav-soft:#2d2746; --lav-ink:#c8baf5;
+  --amber:#e0a84a; --amber-soft:#3d301a; --amber-ink:#f0c983;
+  --red:#e8675e; --red-soft:#43221f; --red-ink:#f4a59f;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,-apple-system,"Segoe UI","Microsoft YaHei UI","PingFang SC",sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--blue-ink)}
+code{font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+.shell{display:grid;grid-template-columns:var(--rail-w) minmax(0,1fr);min-height:100vh}
+/* rail */
+.rail{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;background:var(--rail);border-right:1px solid var(--line);min-width:0}
+.rhead{padding:12px 12px 8px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:7px}
+.rrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+h1{font-size:17px;margin:0;letter-spacing:.3px;cursor:pointer;flex:1}
+h1 span{color:var(--pink)}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:1px 9px;cursor:pointer;white-space:nowrap;font-size:12.5px}
+.chip.on{border-color:transparent;color:#fff;background:var(--ink)}
+.chip[data-st=open].on{background:var(--pink)} .chip[data-st=partial].on{background:var(--lav)} .chip[data-st=answered].on{background:var(--blue)}
+.chip.on{color:var(--bg)} .chip[data-st].on:not([data-st=all]){color:#fff}
+.chip .n{opacity:.75;margin-left:3px;font-variant-numeric:tabular-nums}
+#q{width:100%;border:1px solid var(--line);border-radius:999px;padding:4px 12px;background:var(--panel);outline:none}
+#q:focus{border-color:var(--pink)}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:2px 10px;cursor:pointer;font-size:13px}
+.btn:hover{border-color:var(--pink);color:var(--pink-ink)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.main{background:var(--pink);border-color:var(--pink);color:#fff}
+.btn.main:hover{background:var(--pink-ink);color:#fff}
+#tagsel{border:1px solid var(--line);border-radius:10px;padding:2px 6px;background:var(--panel);font-size:12.5px;max-width:170px}
+.tabs{display:flex;gap:4px}
+.tab{flex:1;text-align:center;border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:2px 6px;cursor:pointer;font-size:13px;white-space:nowrap}
+.tab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab .n{opacity:.75;margin-left:3px}
+.tree{flex:1;overflow-y:auto;padding:6px 4px 60px}
+.node{display:flex;align-items:center;gap:3px;border-radius:8px;padding:2px 6px 2px 0;cursor:pointer;user-select:none;min-width:0}
+.node:hover{background:var(--hover)}
+.node.sel{background:var(--sel)}
+.node.flash{outline:2px solid var(--pink)}
+.tw{flex:none;width:16px;text-align:center;color:var(--muted);font-size:11px;cursor:pointer}
+.tw:hover{color:var(--pink-ink)}
+.sd{flex:none;width:8px;height:8px;border-radius:50%;background:var(--c,var(--muted))}
+.nid{flex:none;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;width:38px;text-align:right;margin-right:3px}
+.nt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.lv0>.node .nt{font-weight:650}
+.cnt{flex:none;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.node.dim .nt{color:var(--muted)}
+.node.struck .nt{text-decoration:line-through;color:var(--muted)}
+.node.drop-in{outline:2px dashed var(--pink)}
+.node.drop-before{box-shadow:0 -3px 0 var(--blue) inset}
+.node.dragging{opacity:.4}
+.grp{font-size:11.5px;color:var(--muted);margin:10px 8px 3px;letter-spacing:.5px;text-transform:uppercase}
+#topzone{display:none;margin:6px;border:2px dashed var(--blue);border-radius:10px;padding:6px;text-align:center;color:var(--blue-ink);background:var(--blue-soft);font-size:12.5px}
+body.dragmode #topzone{display:block}
+.rfoot{border-top:1px solid var(--line);padding:6px 12px;font-size:11.5px;color:var(--muted)}
+/* status colours: --c line, --cs soft fill, --ci ink */
+[data-st=open]{--c:var(--pink);--cs:var(--pink-soft);--ci:var(--pink-ink)}
+[data-st=partial]{--c:var(--lav);--cs:var(--lav-soft);--ci:var(--lav-ink)}
+[data-st=answered]{--c:var(--blue);--cs:var(--blue-soft);--ci:var(--blue-ink)}
+[data-st=pending]{--c:var(--amber);--cs:var(--amber-soft);--ci:var(--amber-ink)}
+[data-st=running]{--c:var(--lav);--cs:var(--lav-soft);--ci:var(--lav-ink)}
+[data-st=done]{--c:var(--blue);--cs:var(--blue-soft);--ci:var(--blue-ink)}
+[data-st=rejected]{--c:var(--muted);--cs:var(--line);--ci:var(--muted)}
+[data-st=current]{--c:var(--blue);--cs:var(--blue-soft);--ci:var(--blue-ink)}
+[data-st=retracted]{--c:var(--red);--cs:var(--red-soft);--ci:var(--red-ink)}
+.pri{flex:none;font-size:10.5px;font-weight:700;border-radius:5px;padding:0 4px;line-height:15px;font-variant-numeric:tabular-nums}
+.pri.P0{background:var(--red);color:#fff} .pri.P1{background:var(--lav-soft);color:var(--lav-ink)} .pri.P2{background:var(--line);color:var(--muted)}
+/* pane */
+.pane{min-width:0;padding:22px 30px 90px;max-width:1080px}
+.crumb{font-size:12.5px;color:var(--muted);margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.crumb a{color:var(--muted);text-decoration:none;cursor:pointer}
+.crumb a:hover{color:var(--pink-ink);text-decoration:underline}
+.ph{display:flex;gap:10px;align-items:flex-start;border-top:5px solid var(--c);padding-top:12px;flex-wrap:wrap}
+.ph h2{flex:1;margin:0;font-size:21px;line-height:1.45;word-break:break-word;min-width:200px}
+.ph h2 .id{font-size:13px;color:var(--muted);font-weight:400;margin-left:8px}
+.ph.struck h2{text-decoration:line-through;text-decoration-color:var(--red)}
+.pill{flex:none;font-size:12px;border-radius:999px;padding:2px 10px;background:var(--cs);color:var(--ci);margin-top:5px;user-select:none}
+.pill.click{cursor:pointer}
+.pill.plain{background:var(--panel);border:1px solid var(--line);color:var(--ink)}
+.acts{display:flex;gap:6px;flex:none;margin-top:3px}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px;font-size:12px;color:var(--muted);align-items:center}
+.tag{font-size:12px;border-radius:999px;padding:0 9px;background:var(--blue-soft);color:var(--blue-ink)}
+.lk{font-size:12.5px;border-radius:999px;padding:1px 10px;background:var(--pink-soft);color:var(--pink-ink);text-decoration:none;white-space:nowrap;display:inline-block;margin:2px 4px 2px 0;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+.lk:hover{background:var(--pink);color:#fff}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px;margin-top:14px}
+.box>h3{font-size:12px;color:var(--muted);letter-spacing:.5px;font-weight:600;margin:0 0 6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;text-transform:uppercase}
+.atitle{font-weight:650;color:var(--ci);font-size:15px;margin-bottom:4px}
+.bd{font-size:14px;word-break:break-word}
+.bd ul{margin:2px 0;padding-left:20px}
+.bd li{margin:2px 0}
+.bd p{margin:4px 0}
+.bd .todo{background:var(--pink-soft);border-radius:8px;padding:3px 8px;color:var(--pink-ink)}
+.ref{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:var(--lav-soft);color:var(--lav-ink);border-radius:6px;padding:0 4px;cursor:pointer;white-space:nowrap}
+.ref.K{background:var(--blue-soft);color:var(--blue-ink)}
+.ref.bad{background:var(--red-soft);color:var(--red-ink);text-decoration:line-through}
+.ref.missing{background:none;color:var(--muted);cursor:default;text-decoration:underline dotted}
+mark{background:#ffe08a;color:#2b2a38;border-radius:3px;padding:0 1px}
+.row{display:grid;grid-template-columns:auto 52px minmax(0,1fr) auto;gap:8px;align-items:baseline;padding:6px;border-radius:9px;cursor:pointer;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:none}
+.row:hover{background:var(--hover)}
+.row .sd{align-self:center}
+.row .rid{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.row .rt{font-weight:600;min-width:0}
+.row .ra{font-size:12.5px;color:var(--muted);grid-column:3/5}
+.row .rc{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.bar{display:inline-flex;height:6px;border-radius:99px;overflow:hidden;width:110px;background:var(--line);vertical-align:middle}
+.bar i{display:block}
+.tl{list-style:none;margin:0 0 0 6px;padding:0;border-left:2px solid var(--line)}
+.tl li{position:relative;padding:0 0 12px 14px}
+.tl li:before{content:"";position:absolute;left:-6px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--lav)}
+.tl .tm{font-size:11.5px;color:var(--muted)}
+.tl .tx{white-space:pre-wrap;word-break:break-word;font-size:13.5px}
+.pager{display:flex;gap:6px;align-items:center;justify-content:center;margin-top:6px;font-size:12.5px;color:var(--muted)}
+.addlog{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.addlog textarea,.addlog input{border:1px solid var(--line);border-radius:10px;padding:6px 10px;outline:none;background:var(--panel)}
+.addlog textarea:focus,.addlog input:focus{border-color:var(--pink)}
+.addlog .r{display:flex;gap:6px;flex-wrap:wrap}
+.addlog .r input{flex:1;min-width:120px}
+.hint{font-size:12px;color:var(--muted)}
+.home h2{margin:0 0 4px;font-size:20px}
+.stat{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted);align-items:center}
+.stat b{font-size:18px;color:var(--ink);margin-right:3px}
+.empty{color:var(--muted);text-align:center;padding:60px 0}
+.note{background:var(--cs);color:var(--ci);border-radius:10px;padding:8px 12px;margin-top:12px;font-size:13.5px}
+.note pre{white-space:pre-wrap;font-size:12px;margin:6px 0 0;word-break:break-word}
+.note code{background:var(--panel);border-radius:6px;padding:1px 6px;word-break:break-all}
+.issue{font-size:13px;padding:3px 0;border-bottom:1px solid var(--line)}
+.issue:last-child{border-bottom:none}
+/* drawer */
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:-10px 0 30px rgba(60,30,70,.12);transform:translateX(105%);transition:transform .2s;z-index:50;display:flex;flex-direction:column}
+#drawer.on{transform:none}
+#drawer .dh{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
+#drawer .dh b{flex:1;font-size:15px}
+#drawer form{flex:1;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+#drawer label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+#drawer input,#drawer select,#drawer textarea{border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--panel);outline:none}
+#drawer input:focus,#drawer textarea:focus,#drawer select:focus{border-color:var(--pink)}
+#drawer textarea{resize:vertical;min-height:80px;line-height:1.5}
+#drawer .df{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+#drawer .df .sp{flex:1}
+.del.arm{background:var(--red-soft);border-color:var(--red);color:var(--red-ink)}
+#tip{position:fixed;z-index:80;max-width:min(480px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:8px 11px;font-size:12.5px;display:none;pointer-events:none}
+#tip .tm{color:var(--muted);font-size:11.5px;margin-bottom:3px}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);border-radius:999px;padding:6px 16px;font-size:13px;display:none;z-index:90;max-width:90vw}
+.mtoggle{display:none;position:fixed;left:14px;bottom:14px;z-index:70;border:none;border-radius:999px;padding:8px 14px;background:var(--pink);color:#fff;box-shadow:var(--shadow);cursor:pointer}
+@media(max-width:900px){
+  .shell{grid-template-columns:1fr}
+  .rail{position:fixed;left:0;top:0;bottom:0;width:min(92vw,380px);transform:translateX(-102%);transition:transform .18s;z-index:60}
+  .rail.open{transform:none}
+  .mtoggle{display:inline-flex}
+  .pane{padding:16px 16px 90px}
+  .row{grid-template-columns:auto 44px minmax(0,1fr)}
+  .row .rc{display:none}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+<nav class="rail" id="rail">
+  <div class="rhead">
+    <div class="rrow">
+      <h1 id="home" data-i="home_title_html"></h1>
+      <button class="btn" id="lang" title="English / 中文"></button>
+      <button class="btn" id="undo" data-it="undo_tip" data-i="undo"></button>
+      <button class="btn main" id="new" data-it="new_tip">＋</button>
+    </div>
+    <div class="tabs">
+      <span class="tab on" data-mode="T"><span data-i="tab_T"></span><span class="n" id="n_T"></span></span>
+      <span class="tab" data-mode="P"><span data-i="tab_P"></span><span class="n" id="n_P"></span></span>
+      <span class="tab" data-mode="K"><span data-i="tab_K"></span><span class="n" id="n_K"></span></span>
+    </div>
+    <div class="rrow" id="stchips"></div>
+    <div class="rrow" id="prchips"></div>
+    <input id="q" autocomplete="off">
+    <div class="rrow">
+      <select id="tagsel"></select>
+      <span style="flex:1"></span>
+      <button class="btn" id="exp1" data-i="expand1"></button>
+      <button class="btn" id="expall" data-i="expand_all"></button>
+    </div>
+  </div>
+  <div id="topzone" data-i="drop_top"></div>
+  <div class="tree" id="tree"></div>
+  <div class="rfoot" id="rfoot"></div>
+</nav>
+<main class="pane" id="pane"></main>
+</div>
+<button class="mtoggle" id="mtoggle">☰</button>
+
+<aside id="drawer" aria-hidden="true">
+  <div class="dh"><b id="dtitle"></b><span class="hint" data-i="drawer_keys"></span></div>
+  <form id="f" onsubmit="return false"></form>
+  <div class="df"><button class="btn del" id="fdel"></button><span class="sp"></span><button class="btn" id="fcancel" data-i="cancel"></button><button class="btn main" id="fsave" data-i="save"></button></div>
+</aside>
+<div id="tip"></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+// ───────────────────────── i18n
+const I18N = {
+en:{
+  home_title_html:'ticket<span>desk</span>', undo:"Undo", undo_tip:"Undo the last change (Ctrl+Z)", new_tip:"New (N)",
+  tab_T:"Tickets", tab_P:"Proposals", tab_K:"Knowledge", all:"All", unranked:"none", all_pri:"Any priority", all_tags:"All tags",
+  search:"Search titles, bodies, logs, ids… ( / )", expand1:"Expand 1", expand_all:"Expand all", collapse_all:"Collapse all",
+  drop_top:"Drop here = make top-level", foot_T:"Drag a title onto another = make it a child (upper edge = place before) · ▸ only folds, the title opens",
+  foot_P:"Proposals are actions that need a human's approval.", foot_K:"Knowledge entries are facts that tickets cite as K001; retract instead of deleting.",
+  st_open:"open", st_partial:"partial", st_answered:"answered", st_pending:"pending approval", st_running:"approved · in progress", st_done:"done · archived", st_rejected:"rejected",
+  st_current:"current", st_retracted:"retracted",
+  overview:"Overview", home_hint:"Tickets carry work across sessions and agents: open questions, things to do, settled answers. Any agent can read a ticket and take over. #T012 in the URL jumps straight to a card.",
+  n_tickets:"tickets", todo:"To do (open + partial, P0 first)", todo_more:"…and %d more", filter_hits:"Matching the filter: %d",
+  pending_props:"Proposals waiting or in progress", issues:"Consistency check", no_issues:"No dangling ids, no ticket citing retracted knowledge.",
+  topics:"Topics (top level: %d)", recent:"Recently updated", question:"Question", answer:"Answer", no_answer:"(no answer yet)",
+  children:"Children: %d", desc:"descendants %d", log:"Log: %d (newest first)", no_log:"No log yet. Agents write one with",
+  log_ph:"Add a log entry: what was done, what was found, where it is stuck (Ctrl+Enter)", log_name:"Session name (optional)", log_sess:"Session id (optional)", record:"Record",
+  edit:"✎ Edit", child:"＋ Child", source:"source", created:"created", updated:"updated", cited:"Cited knowledge", related_props:"Related proposals: %d",
+  click_status:"Click to cycle status", click_pri:"Click to cycle priority P0 → P1 → P2 → none", no_pri:"no priority",
+  prop:"Proposal", linked_tickets:"Linked tickets", none:"none", summary:"Summary", body:"Body",
+  p_pending_script:"Approve runs <code>%s</code> in the background (the script should check its own preconditions and stop on failure); the result shows up here.",
+  p_pending_agent:"Approval only marks it approved; an agent then carries it out: %s",
+  p_pending_norun:"The server was started without --allow-run, so approving only marks it approved; an agent carries it out.",
+  approve_run:"✓ Approve and run", approve:"✓ Approve", reject:"Reject", reject_reason:"Why reject? (optional)",
+  p_running:"Approved %s%s, in progress. When done it is archived into the linked tickets.", p_done:"Done, archived to", p_rejected:"Rejected.",
+  ex_running:"⏳ Running…", ex_ok:"✓ Run succeeded", ex_fail:"✗ Run failed", ex_fail_hint:"The proposal is marked approved, but the script did not succeed; see the output.", full_log:"Full log",
+  k_cited_by:"Cited by", k_supersedes:"Supersedes", k_superseded_by:"Superseded by", retract:"Retract…", retract_reason:"Why is this retracted? (required)",
+  retract_sup:"Superseded by which knowledge id? (optional, e.g. K007)", k_retracted_note:"Retracted %s. Tickets that still cite it are listed in the consistency check.",
+  new_T:"New ticket", new_child:"New child of %s", new_K:"New knowledge entry", new_P:"New proposal", edit_x:"Edit %s",
+  f_title:"Title", f_status:"Status", f_priority:"Priority", f_parent:"Parent", top_level:"(top level)", f_question:"Question",
+  f_question_ph:"The original wording, background, what to find out", f_answer_title:"Answer title", f_answer_title_ph:"One-line conclusion; empty if there is no answer yet",
+  f_answer:"Answer", f_answer_ph:"Lines starting with \"- \" become bullets; lines starting with TODO are highlighted; T012 / P003 / K007 become links",
+  f_links:"Links (one per line: label|url)", f_tags:"Tags (comma or space separated)", f_source:"Source (session / file)",
+  f_k_title:"Statement (one sentence)", f_k_body:"Details, evidence, conditions under which it holds", f_summary:"Summary (one sentence)", f_body:"Body",
+  f_approve_cmd:"Approve command (a script inside the scripts dir runs on approval; anything else is just recorded)", f_tickets:"Linked tickets (T001, T002)",
+  pri_P0:"P0 big and important — keep going without asking", pri_P1:"P1 normal", pri_P2:"P2 small — parked", pri_none:"none",
+  drawer_keys:"Ctrl+Enter save · Esc close", cancel:"Cancel", save:"Save", del:"Delete", del_confirm:"Click again to delete (children move up)",
+  title_empty:"Title must not be empty", saved:"Saved %s", created_x:"Created %s", deleted:"Deleted (undo is available)", undone:"Undone", logged:"Logged",
+  log_empty:"Log text must not be empty", status_to:"%s → %s", pri_to:"%s priority → %s", moved_in:"%s moved under %s", moved_before:"%s placed before %s", moved_top:"%s is now top-level",
+  folding_off:"While filtering every node is expanded; clear the filter to fold", nothing:"Nothing matches", no_props:"No proposals yet", no_k:"No knowledge entries yet",
+  load_fail:"Cannot read data: %s", page:"Page %d / %d (%d items)", prev:"‹ Prev", next:"Next ›", missing_ref:"no such id",
+  approved_x:"%s approved", rejected_x:"%s rejected", retracted_x:"%s retracted", k_retracted_tip:"RETRACTED", items:"%d",
+},
+zh:{
+  home_title_html:'Ticket<span>台</span>', undo:"撤销", undo_tip:"撤销上一次修改 (Ctrl+Z)", new_tip:"新建 (N)",
+  tab_T:"Ticket", tab_P:"提案", tab_K:"知识", all:"全部", unranked:"未分", all_pri:"全部优先级", all_tags:"全部标签",
+  search:"搜索标题、正文、日志、编号… ( / )", expand1:"展开一层", expand_all:"全展", collapse_all:"全折",
+  drop_top:"放到这里 = 升为顶层", foot_T:"拖标题到别的节点 = 挂为子 ticket（落在行上沿 = 排到它前面）· 点 ▸ 只折叠，点标题才打开",
+  foot_P:"提案 = 需要人批准才能做的事。", foot_K:"知识条目 = ticket 以 K001 引用的事实；作废用「撤回」，不要删。",
+  st_open:"未决", st_partial:"部分有答案", st_answered:"已答", st_pending:"未批准", st_running:"已批准·实行中", st_done:"完成·已归档", st_rejected:"否决",
+  st_current:"现行", st_retracted:"已撤回",
+  overview:"总览", home_hint:"Ticket 是跨对话、跨 agent 的权威记录：待解的问题、要做的事、已定的结论。任何 agent 读 ticket 就能接手。网址 #T012 直达。",
+  n_tickets:"张", todo:"待办（未决 + 部分，P0 在前）", todo_more:"…另有 %d 张", filter_hits:"当前筛选命中 %d 张",
+  pending_props:"进行中的提案（未批准 / 实行中）", issues:"一致性检查", no_issues:"没有悬空编号，也没有 ticket 引用已撤回的知识。",
+  topics:"主题（顶层 %d 个）", recent:"最近更新", question:"问题", answer:"回答", no_answer:"（暂无回答）",
+  children:"子 ticket %d 张", desc:"子孙 %d 张", log:"日志 %d 条（新的在上）", no_log:"还没有日志。agent 用",
+  log_ph:"追加一条日志：做了什么、发现了什么、卡在哪（Ctrl+Enter 记录）", log_name:"对话名称（可空）", log_sess:"对话 id（可空）", record:"记录",
+  edit:"✎ 编辑", child:"＋ 子 ticket", source:"来源", created:"建", updated:"改", cited:"引用的知识", related_props:"相关提案 %d 份",
+  click_status:"点击切换状态", click_pri:"点击切换优先级 P0 → P1 → P2 → 未分", no_pri:"未分级",
+  prop:"提案", linked_tickets:"关联 ticket", none:"无", summary:"一句话", body:"正文",
+  p_pending_script:"点「批准并执行」= 批准并在后台执行 <code>%s</code>（脚本应先核前置条件、失败即停）；结果会显示在这里。",
+  p_pending_agent:"批准只做标记，由 agent 接手执行：%s",
+  p_pending_norun:"服务没有以 --allow-run 启动，批准只做标记，由 agent 接手执行。",
+  approve_run:"✓ 批准并执行", approve:"✓ 批准", reject:"否决", reject_reason:"否决理由（可空）",
+  p_running:"已于 %s 批准%s，正在实行。完成后归档进关联 ticket。", p_done:"完成，已归档到", p_rejected:"已否决。",
+  ex_running:"⏳ 执行中…", ex_ok:"✓ 执行成功", ex_fail:"✗ 执行失败", ex_fail_hint:"提案已标记批准，但脚本没成功，看下面输出。", full_log:"完整日志",
+  k_cited_by:"被引用", k_supersedes:"取代", k_superseded_by:"被取代为", retract:"撤回…", retract_reason:"为什么撤回？（必填）",
+  retract_sup:"被哪条知识取代？（可空，如 K007）", k_retracted_note:"已于 %s 撤回。仍在引用它的 ticket 列在一致性检查里。",
+  new_T:"新建 ticket", new_child:"新建 %s 的子 ticket", new_K:"新建知识条目", new_P:"新建提案", edit_x:"编辑 %s",
+  f_title:"标题", f_status:"状态", f_priority:"优先级", f_parent:"上级 ticket", top_level:"（顶层）", f_question:"问题正文",
+  f_question_ph:"原话、背景、想弄清什么", f_answer_title:"回答标题", f_answer_title_ph:"一句话结论；还没有答案就留空",
+  f_answer:"回答正文", f_answer_ph:"以「- 」开头的行显示为要点；以 TODO / 待查 开头的行高亮；T012 / P003 / K007 自动成链接",
+  f_links:"链接（每行一条「名称|网址」）", f_tags:"标签（逗号或空格分隔）", f_source:"来源（对话 / 文件）",
+  f_k_title:"陈述（一句话）", f_k_body:"细节、证据、成立条件", f_summary:"一句话", f_body:"正文",
+  f_approve_cmd:"批准命令（scripts 目录里的脚本会在批准时执行；其他内容只做记录）", f_tickets:"关联 ticket（T001, T002）",
+  pri_P0:"P0 大且重要，接着做不用问", pri_P1:"P1 正常", pri_P2:"P2 小 / 价值不大，搁置", pri_none:"未分",
+  drawer_keys:"Ctrl+Enter 保存 · Esc 关闭", cancel:"取消", save:"保存", del:"删除", del_confirm:"再点一次确认删除（子 ticket 上移一级）",
+  title_empty:"标题不能为空", saved:"已保存 %s", created_x:"已新建 %s", deleted:"已删除，可撤销", undone:"已撤销", logged:"已记录",
+  log_empty:"日志内容不能为空", status_to:"%s → %s", pri_to:"%s 优先级 → %s", moved_in:"%s 挂到 %s 下", moved_before:"%s 排到 %s 前面", moved_top:"%s 升为顶层",
+  folding_off:"筛选中节点全部展开；清空筛选后可折叠", nothing:"没有匹配的条目", no_props:"还没有提案", no_k:"还没有知识条目",
+  load_fail:"读不到数据：%s", page:"第 %d / %d 页（共 %d 条）", prev:"‹ 上一页", next:"下一页 ›", missing_ref:"不存在的编号",
+  approved_x:"%s 已批准", rejected_x:"%s 已否决", retracted_x:"%s 已撤回", k_retracted_tip:"已撤回", items:"%d",
+}};
+const store = (()=>{ try{ const s=window.localStorage; s.setItem("_t","1"); s.removeItem("_t"); return s; }catch(e){ return null; } })();
+function lsGet(k,d){ try{ const v=store&&store.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
+function lsSet(k,v){ try{ store&&store.setItem(k,JSON.stringify(v)); }catch(e){} }
+let LANG = new URLSearchParams(location.search).get("lang") || lsGet("td_lang", null) || ((navigator.language||"").toLowerCase().startsWith("zh") ? "zh" : "en");
+if(!I18N[LANG]) LANG="en";
+function t(k, ...a){ let s = (I18N[LANG][k] ?? I18N.en[k] ?? k); for(const x of a) s = s.replace(/%[sd]/, x); return s; }
+function applyI18n(){
+  document.documentElement.lang = LANG==="zh" ? "zh-CN" : "en";
+  document.querySelectorAll("[data-i]").forEach(el=>{ const k=el.dataset.i; if(k.endsWith("_html")) el.innerHTML=t(k); else el.textContent=t(k); });
+  document.querySelectorAll("[data-it]").forEach(el=>el.title=t(el.dataset.it));
+  $("#q").placeholder=t("search"); $("#lang").textContent = LANG==="zh" ? "EN" : "中";
+}
+
+// ───────────────────────── state
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const STS = {T:["open","partial","answered"], P:["pending","running","done","rejected"], K:["current","retracted"]};
+const PRIS = ["P0","P1","P2",""];
+const LOGPER = 12, ROWPER = 15;
+let DB = {tickets:[],proposals:[],knowledge:[]}, ISSUES = [], byId = {}, kids = {};
+let F = {st:"all", q:"", tag:"", pr:""};
+let VIEW = null, MODE = "T", LOGPAGE = 0, ROWPAGE = 0, ALLOW_RUN = false;
+let EXP = lsGet("td_tree_exp", null);
+const kindOf = id => id ? id[0] : null;
+const collOf = k => ({T:"tickets",P:"proposals",K:"knowledge"})[k];
+const items = k => DB[collOf(k)] || [];
+const priB = p => p ? `<span class="pri ${p}" title="${p}">${p}</span>` : "";
+const dt = s => esc(String(s||"").replace("T"," "));
+
+async function api(path, body){
+  const r = await fetch(path, body===undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json","X-Desk-Client":"1"}, body:JSON.stringify(body)});
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error || ("HTTP "+r.status));
+  return j;
+}
+function toast(m){ const el=$("#toast"); el.textContent=m; el.style.display="block"; clearTimeout(toast.h); toast.h=setTimeout(()=>el.style.display="none",2200); }
+
+async function reload(){
+  const [d, iss, h] = await Promise.all([api("/api/state"), api("/api/check"), api("/api/health")]);
+  DB = d; ISSUES = iss; ALLOW_RUN = !!h.allow_run;
+  byId = {}; kids = {};
+  for(const c of ["tickets","proposals","knowledge"]) for(const x of DB[c]) byId[x.id]=x;
+  for(const x of DB.tickets){ const p = (x.parent && byId[x.parent]) ? x.parent : ""; (kids[p] ||= []).push(x); }
+  for(const k in kids) kids[k].sort((a,b)=>a.order-b.order);
+  if(EXP===null){ EXP={}; for(const x of kids[""]||[]) EXP[x.id]=true; }
+  if(VIEW && !byId[VIEW]){ VIEW=null; history.replaceState(null,"",location.pathname+location.search); }
+  renderAll();
+}
+
+// ───────────────────────── text rendering
+function hl(s){
+  if(!F.q) return s;
+  const re = new RegExp("("+F.q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","gi");
+  return s.replace(/(<[^>]+>)|([^<]+)/g,(m,tag,txt)=>tag?tag:txt.replace(re,"<mark>$1</mark>"));
+}
+function refHtml(id){
+  const x = byId[id];
+  if(!x) return `<span class="ref missing" title="${esc(t("missing_ref"))}">${id}</span>`;
+  const bad = x.id[0]==="K" && x.status==="retracted";
+  return `<span class="ref ${x.id[0]}${bad?" bad":""}" data-go="${id}" data-ref="${id}">${id}</span>`;
+}
+function inline(s){ return esc(s).replace(/\b[TPK]\d{3,}\b/g, refHtml); }
+function body(txt){
+  const lines = String(txt||"").split(/\n/); let h="", inUl=false;
+  for(const l of lines){
+    const s = l.trim();
+    if(!s){ if(inUl){h+="</ul>";inUl=false;} continue; }
+    if(/^[-•*]\s+/.test(s)){ if(!inUl){h+="<ul>";inUl=true;} h+="<li>"+inline(s.replace(/^[-•*]\s+/,""))+"</li>"; continue; }
+    if(inUl){h+="</ul>";inUl=false;}
+    h += /^(TODO|待查|待决)/i.test(s) ? `<p class="todo">${inline(s)}</p>` : `<p>${inline(s)}</p>`;
+  }
+  if(inUl) h+="</ul>";
+  return hl(h);
+}
+const plain = s=>String(s||"").replace(/\s+/g," ").trim();
+const short = (s,n)=>{ s=String(s||""); return s.length>n ? s.slice(0,n)+"…" : s; };
+
+// ───────────────────────── filtering
+function hay(x){ return [x.id,x.title,x.question,x.answer_title,x.answer,x.summary,x.body,x.source,x.approve_cmd,(x.tags||[]).join(" "),(x.tickets||[]).join(" "),
+  (x.log||[]).map(e=>e.text+" "+(e.name||"")).join(" ")].join(" ").toLowerCase(); }
+function selfMatch(x){
+  if(F.st!=="all" && x.status!==F.st) return false;
+  if(F.tag && !(x.tags||[]).includes(F.tag)) return false;
+  if(F.pr && x.id[0]!=="K" && (F.pr==="-" ? !!x.priority : x.priority!==F.pr)) return false;
+  if(F.q && !hay(x).includes(F.q.toLowerCase())) return false;
+  return true;
+}
+const filtering = ()=> F.st!=="all" || F.q || F.tag || F.pr;
+let VIS = {};
+function computeVis(){
+  VIS = {};
+  (function go(p){ let any=false; for(const x of kids[p]||[]){ const sub=go(x.id); const v=selfMatch(x)||sub; VIS[x.id]=v; any=any||v; } return any; })("");
+}
+function descendants(x){ const out=[]; (function go(y){ for(const c of kids[y.id]||[]){ out.push(c); go(c); } })(x); return out; }
+function ancestorsOf(id){ const a=[]; let p=byId[id]?.parent; while(p && byId[p] && !a.includes(p)){ a.unshift(p); p=byId[p].parent; } return a; }
+
+// ───────────────────────── rail
+function renderChips(){
+  const L = items(MODE), sts = STS[MODE];
+  $("#stchips").innerHTML = `<span class="chip${F.st==="all"?" on":""}" data-st="all">${t("all")}<span class="n">${L.length}</span></span>`+
+    sts.map(s=>`<span class="chip${F.st===s?" on":""}" data-st="${s}">${t("st_"+s)}<span class="n">${L.filter(x=>x.status===s).length}</span></span>`).join("");
+  $("#prchips").style.display = MODE==="K" ? "none" : "";
+  $("#prchips").innerHTML = `<span class="chip pchip${F.pr===""?" on":""}" data-pr="">${t("all_pri")}</span>`+
+    ["P0","P1","P2","-"].map(p=>`<span class="chip pchip${F.pr===p?" on":""}" data-pr="${p}">${p==="-"?t("unranked"):p}<span class="n">${L.filter(x=>(x.priority||"-")===p).length}</span></span>`).join("");
+  for(const k of "TPK") $("#n_"+k).textContent = k==="P" ? (()=>{ const n=items("P").filter(x=>x.status==="pending").length; return n? n+"/"+items("P").length : items("P").length; })() : items(k).length;
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on", x.dataset.mode===MODE));
+  const tc={}; for(const x of L) for(const g of x.tags||[]) tc[g]=(tc[g]||0)+1;
+  $("#tagsel").innerHTML = `<option value="">${esc(t("all_tags"))}</option>`+Object.entries(tc).sort((a,b)=>b[1]-a[1]).map(([g,n])=>`<option value="${esc(g)}"${g===F.tag?" selected":""}>${esc(g)} ${n}</option>`).join("");
+  $("#exp1").style.display = $("#expall").style.display = MODE==="T" ? "" : "none";
+  $("#rfoot").textContent = t("foot_"+MODE);
+}
+function flatNode(x, extra){
+  return `<div class="node${x.id===VIEW?" sel":""}${x.status==="retracted"?" struck":""}" data-id="${x.id}" data-st="${x.status}" style="padding-left:6px" title="${esc(x.id+" "+x.title)}">`+
+    `<span class="sd"></span>${priB(x.priority)}<span class="nid">${x.id}</span><span class="nt">${hl(esc(x.title))}</span>${extra?`<span class="cnt">${esc(extra)}</span>`:""}</div>`;
+}
+function renderFlat(){
+  const L = items(MODE).filter(selfMatch); let h="";
+  for(const s of STS[MODE]){
+    const xs = L.filter(x=>x.status===s).sort((a,b)=>String(b.updated).localeCompare(String(a.updated)));
+    if(xs.length) h += `<div class="grp">${t("st_"+s)} · ${xs.length}</div>` + xs.map(x=>flatNode(x, MODE==="P" ? (x.tickets||[]).join(" ") : (x.superseded_by ? "→ "+x.superseded_by : ""))).join("");
+  }
+  $("#tree").innerHTML = h || `<div class="empty" style="padding:30px 0">${t(items(MODE).length ? "nothing" : MODE==="P" ? "no_props" : "no_k")}</div>`;
+}
+function renderTree(){
+  if(MODE!=="T") return renderFlat();
+  computeVis();
+  const out=[];
+  (function go(p, dep){
+    for(const x of kids[p]||[]){
+      if(!VIS[x.id]) continue;
+      const ks=(kids[x.id]||[]).filter(c=>VIS[c.id]);
+      const open = filtering() ? true : !!EXP[x.id];
+      const nd = descendants(x).length, dim = filtering() && !selfMatch(x);
+      out.push(`<div class="lv${Math.min(dep,2)}"><div class="node${x.id===VIEW?" sel":""}${dim?" dim":""}" data-id="${x.id}" data-st="${x.status}" draggable="true" style="padding-left:${4+dep*14}px" title="${esc(x.id+" "+x.title)}">`+
+        `<span class="tw" data-tw="1">${ks.length?(open?"▾":"▸"):""}</span><span class="sd"></span>${priB(x.priority)}<span class="nid">${x.id}</span>`+
+        `<span class="nt">${hl(esc(x.title))}</span>${nd?`<span class="cnt">${nd}</span>`:""}</div></div>`);
+      if(ks.length && open) go(x.id, dep+1);
+    }
+  })("",0);
+  $("#tree").innerHTML = out.length ? out.join("") : `<div class="empty" style="padding:30px 0">${t("nothing")}</div>`;
+}
+
+// ───────────────────────── pane pieces
+function statBar(list){
+  const cnt={open:0,partial:0,answered:0}; for(const d of list) cnt[d.status]++;
+  const n=list.length||1, col={open:"pink",partial:"lav",answered:"blue"};
+  return {cnt, bar:`<span class="bar">${STS.T.map(s=>`<i style="width:${100*cnt[s]/n}%;background:var(--${col[s]})"></i>`).join("")}</span>`};
+}
+function rows(list){
+  return list.map(x=>{
+    let right="", sub="";
+    if(x.id[0]==="T"){ const ds=descendants(x); if(ds.length) right=`${ds.length} ${statBar(ds).bar}`; sub=x.answer_title; }
+    else if(x.id[0]==="P"){ right=esc(t("st_"+x.status)); sub=x.summary; }
+    else { right=x.status==="retracted"?esc(t("st_retracted")):""; sub=plain(x.body).slice(0,140); }
+    return `<div class="row" data-go="${x.id}" data-st="${x.status}"><span class="sd"></span><span class="rid">${priB(x.priority)} ${x.id}</span><span class="rt">${hl(esc(x.title))}</span>`+
+      `<span class="rc">${right}</span>${sub?`<span class="ra">${hl(inline(sub))}</span>`:""}</div>`;
+  }).join("");
+}
+function pager(page, total, per, key){
+  const np=Math.ceil(total/per); if(np<=1) return "";
+  return `<div class="pager"><button class="btn" data-pg="${key}" data-to="${page-1}" ${page<=0?"disabled":""}>${t("prev")}</button>${t("page",page+1,np,total)}<button class="btn" data-pg="${key}" data-to="${page+1}" ${page>=np-1?"disabled":""}>${t("next")}</button></div>`;
+}
+function timeline(log, page){
+  const lg=(log||[]).slice().reverse();
+  const li=lg.slice(page*LOGPER,(page+1)*LOGPER).map(e=>`<li><div class="tm">${dt(e.ts)}　${esc(e.name||"")}${e.session?`　<span title="session id">${esc(short(e.session,12))}</span>`:""}</div><div class="tx">${hl(inline(e.text))}</div></li>`).join("");
+  return li ? `<ul class="tl">${li}</ul>${pager(page,lg.length,LOGPER,"log")}` : "";
+}
+function linksHtml(x){ return (x.links||[]).map(l=>{ const safe=/^(https?:|mailto:|file:|\/|#)/i.test(l.url); return safe?`<a class="lk" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}">↗ ${esc(l.label)}</a>`:`<span class="lk" title="${esc(l.url)}">${esc(l.label)}</span>`; }).join(""); }
+function metaHtml(x){
+  return `<div class="meta">${(x.tags||[]).map(g=>`<span class="tag">${esc(g)}</span>`).join("")}${x.source!==undefined?`<span>${t("source")}: ${esc(x.source||"—")}</span>`:""}`+
+    `<span>· ${t("created")} ${dt(x.created)}</span><span>· ${t("updated")} ${dt(x.updated)}</span></div>`+(linksHtml(x)?`<div style="margin-top:4px">${linksHtml(x)}</div>`:"");
+}
+function addLogBox(id){
+  return `<div class="addlog"><textarea id="lg_text" rows="3" placeholder="${esc(t("log_ph"))}"></textarea>`+
+    `<div class="r"><input id="lg_name" placeholder="${esc(t("log_name"))}" value="${esc(lsGet("td_name",""))}"><input id="lg_sess" placeholder="${esc(t("log_sess"))}"><button class="btn main" id="lg_add" data-id="${id}">${t("record")}</button></div></div>`;
+}
+function crumb(extra){ return `<div class="crumb"><a data-home="1">${t("overview")}</a> › ${extra}</div>`; }
+function refsIn(x){ const s=[x.title,x.question,x.answer_title,x.answer,x.summary,x.body,...(x.log||[]).map(e=>e.text)].join("\n"); return [...new Set(s.match(/\b[TPK]\d{3,}\b/g)||[])].filter(r=>r!==x.id); }
+
+// ───────────────────────── pages
+function renderHome(){
+  const all=DB.tickets, sb=statBar(all);
+  const rank={P0:0,P1:1,P2:2,"":3};
+  const todo=all.filter(x=>x.status!=="answered" && x.priority!=="P2").sort((a,b)=>rank[a.priority||""]-rank[b.priority||""] || String(b.updated).localeCompare(String(a.updated)));
+  const hits = filtering() ? items(MODE).filter(selfMatch) : null;
+  const props = DB.proposals.filter(p=>p.status==="pending"||p.status==="running");
+  const tops = (kids[""]||[]);
+  const recent = all.slice().sort((a,b)=>String(b.updated).localeCompare(String(a.updated))).slice(0,10);
+  $("#pane").innerHTML = `<div class="home"><h2>${t("overview")}</h2><div class="hint">${t("home_hint")}</div>
+    <div class="stat" style="margin-top:10px"><span><b>${all.length}</b>${t("n_tickets")}</span><span><b>${sb.cnt.open}</b>${t("st_open")}</span><span><b>${sb.cnt.partial}</b>${t("st_partial")}</span><span><b>${sb.cnt.answered}</b>${t("st_answered")}</span>${sb.bar}</div>
+    ${hits?`<div class="box"><h3>${t("filter_hits",hits.length)}</h3>${rows(hits.slice(ROWPAGE*ROWPER,(ROWPAGE+1)*ROWPER))}${pager(ROWPAGE,hits.length,ROWPER,"row")}</div>`:""}
+    ${props.length?`<div class="box"><h3>${t("pending_props")}</h3>${rows(props)}</div>`:""}
+    ${todo.length?`<div class="box"><h3>${t("todo")}</h3>${rows(todo.slice(0,20))}${todo.length>20?`<div class="hint">${t("todo_more",todo.length-20)}</div>`:""}</div>`:""}
+    <div class="box"><h3>${t("issues")} · ${ISSUES.length}</h3>${ISSUES.length?ISSUES.map(i=>`<div class="issue">${inline(i.msg)}</div>`).join(""):`<div class="hint">${t("no_issues")}</div>`}</div>
+    ${tops.length?`<div class="box"><h3>${t("topics",tops.length)}</h3>${rows(tops)}</div>`:""}
+    ${recent.length?`<div class="box"><h3>${t("recent")}</h3>${rows(recent)}</div>`:""}</div>`;
+}
+function renderTicket(x){
+  const cr = ancestorsOf(x.id).map(a=>`<a data-go="${a}">${a} ${esc(short(byId[a].title,24))}</a> ›`).join(" ");
+  const ks=kids[x.id]||[], ds=descendants(x), ksv=filtering()?ks.filter(c=>VIS[c.id]):ks, sb=ds.length?statBar(ds):null;
+  const kref = refsIn(x).filter(r=>r[0]==="K");
+  const rel = DB.proposals.filter(p=>(p.tickets||[]).includes(x.id));
+  $("#pane").innerHTML = crumb(cr)+
+    `<div class="ph" data-st="${x.status}"><span class="pill click" data-act="cycle" title="${esc(t("click_status"))}">${t("st_"+x.status)}</span><span class="pill click plain" data-act="pcycle" title="${esc(t("click_pri"))}">${x.priority||t("no_pri")}</span>`+
+    `<h2>${hl(esc(x.title))}<span class="id">${x.id}</span></h2><div class="acts"><button class="btn" data-act="edit">${t("edit")}</button><button class="btn" data-act="child">${t("child")}</button></div></div>`+
+    metaHtml(x)+
+    (plain(x.question)?`<div class="box"><h3>${t("question")}</h3><div class="bd">${body(x.question)}</div></div>`:"")+
+    `<div class="box" data-st="${x.status}"><h3>${t("answer")}</h3><div class="atitle">${hl(inline(x.answer_title||(plain(x.answer)?"":t("no_answer"))))}</div>${plain(x.answer)?`<div class="bd">${body(x.answer)}</div>`:""}</div>`+
+    (rel.length?`<div class="box"><h3>${t("related_props",rel.length)}</h3>${rows(rel)}</div>`:"")+
+    (kref.length?`<div class="box"><h3>${t("cited")} · ${kref.length}</h3>${rows(kref.filter(r=>byId[r]).map(r=>byId[r]))}</div>`:"")+
+    (ks.length?`<div class="box"><h3>${t("children",ks.length)}${sb?`<span>· ${t("desc",ds.length)} ${sb.bar}</span>`:""}</h3>${rows(ksv.slice(ROWPAGE*ROWPER,(ROWPAGE+1)*ROWPER))}${pager(ROWPAGE,ksv.length,ROWPER,"row")}</div>`:"")+
+    `<div class="box"><h3>${t("log",(x.log||[]).length)}</h3>${timeline(x.log,LOGPAGE)||`<p class="hint">${t("no_log")} <code>python desk.py log ${x.id} "…"</code></p>`}${addLogBox(x.id)}</div>`;
+}
+function renderProposal(x){
+  const ex=x.exec||null, cmd=String(x.approve_cmd||"");
+  const tks=(x.tickets||[]).map(refHtml).join(" ");
+  const exBox = !ex ? "" : ex.state==="running" ? `<div class="note" data-st="running"><b>${t("ex_running")}</b> ${dt(ex.started)}　<code>${esc(ex.cmd||"")}</code></div>`
+    : ex.state==="ok" ? `<div class="note" data-st="done"><b>${t("ex_ok")}</b> (rc 0, ${dt(ex.ended)})<pre>${esc(ex.tail||"")}</pre></div>`
+    : ex.state==="failed" ? `<div class="note" data-st="retracted"><b>${t("ex_fail")}</b> (rc ${esc(ex.rc)}${ex.error?", "+esc(ex.error):""}, ${dt(ex.ended)}) ${t("ex_fail_hint")}<pre>${esc(ex.tail||"")}</pre><div class="hint">${t("full_log")}: ${esc(ex.log||"")}</div></div>`
+    : `<div class="note" data-st="running">${esc(ex.note||"")}</div>`;
+  const runnable = ALLOW_RUN && /\.(py|sh|cmd|bat|ps1)\s*["']?$/i.test(cmd);
+  const how = x.status==="pending" ? `<div class="note" data-st="pending">${runnable?t("p_pending_script",esc(cmd)):(ALLOW_RUN||!cmd?t("p_pending_agent",esc(cmd)||"—"):t("p_pending_norun"))}`+
+      `<div style="margin-top:8px"><button class="btn main" id="p_run" data-id="${x.id}">${runnable?t("approve_run"):t("approve")}</button>　<button class="btn" id="p_rej" data-id="${x.id}">${t("reject")}</button></div></div>`
+    : x.status==="running" ? `<div class="note" data-st="running">${t("p_running",dt(x.approved_at),x.approved_by?" ("+esc(x.approved_by)+")":"")}${cmd?`<br><code>${esc(cmd)}</code>`:""}<div style="margin-top:8px"><button class="btn" id="p_rej" data-id="${x.id}">${t("reject")}</button></div></div>`
+    : x.status==="done" ? `<div class="note" data-st="done"><b>${t("p_done")}</b> ${(x.archived_to||[]).map(refHtml).join(" ")}　${dt(x.done_at)}<div class="bd" style="margin-top:4px">${body(x.result||"")}</div></div>`
+    : `<div class="note" data-st="rejected">${t("p_rejected")}</div>`;
+  $("#pane").innerHTML = crumb(t("tab_P"))+
+    `<div class="ph" data-st="${x.status}"><span class="pill">${t("st_"+x.status)}</span>${x.priority?`<span class="pill plain">${x.priority}</span>`:""}<h2>${hl(esc(x.title))}<span class="id">${x.id}</span></h2><div class="acts"><button class="btn" data-act="edit">${t("edit")}</button></div></div>`+
+    metaHtml(x)+how+exBox+
+    `<div style="margin-top:10px"><span class="hint">${t("linked_tickets")}:</span> ${tks||`<span class="hint">${t("none")}</span>`}</div>`+
+    (x.summary?`<div class="box" data-st="${x.status}"><h3>${t("summary")}</h3><div class="atitle">${hl(inline(x.summary))}</div></div>`:"")+
+    (plain(x.body)?`<div class="box"><h3>${t("body")}</h3><div class="bd">${body(x.body)}</div></div>`:"")+
+    `<div class="box"><h3>${t("log",(x.log||[]).length)}</h3>${timeline(x.log,LOGPAGE)}${addLogBox(x.id)}</div>`;
+}
+function renderKnowledge(x){
+  const cited = [...DB.tickets, ...DB.proposals].filter(y=>refsIn(y).includes(x.id));
+  $("#pane").innerHTML = crumb(t("tab_K"))+
+    `<div class="ph${x.status==="retracted"?" struck":""}" data-st="${x.status}"><span class="pill">${t("st_"+x.status)}</span><h2>${hl(esc(x.title))}<span class="id">${x.id}</span></h2>`+
+    `<div class="acts"><button class="btn" data-act="edit">${t("edit")}</button>${x.status==="current"?`<button class="btn" data-act="retract">${t("retract")}</button>`:""}</div></div>`+
+    metaHtml(x)+
+    (x.status==="retracted"?`<div class="note" data-st="retracted">${t("k_retracted_note",dt(x.retracted_at))}${x.superseded_by?` ${t("k_superseded_by")} ${refHtml(x.superseded_by)}`:""}</div>`:"")+
+    ((x.supersedes||[]).length?`<div style="margin-top:8px"><span class="hint">${t("k_supersedes")}:</span> ${x.supersedes.map(refHtml).join(" ")}</div>`:"")+
+    (plain(x.body)?`<div class="box"><div class="bd">${body(x.body)}</div></div>`:"")+
+    `<div class="box"><h3>${t("k_cited_by")} · ${cited.length}</h3>${cited.length?rows(cited):`<div class="hint">${t("none")}</div>`}</div>`+
+    `<div class="box"><h3>${t("log",(x.log||[]).length)}</h3>${timeline(x.log,LOGPAGE)}${addLogBox(x.id)}</div>`;
+}
+function renderPane(){
+  const x = VIEW && byId[VIEW];
+  if(!x) return renderHome();
+  if(x.id[0]==="T") return renderTicket(x);
+  if(x.id[0]==="P") return renderProposal(x);
+  return renderKnowledge(x);
+}
+function renderAll(){ applyI18n(); renderChips(); renderTree(); renderPane(); }
+
+function go(id, opts={}){
+  VIEW = id && byId[id] ? id : null; LOGPAGE=0; ROWPAGE=0;
+  if(VIEW){ const k=kindOf(VIEW); if(k!==MODE){ MODE=k; F.st="all"; F.tag=""; } }
+  if(VIEW && MODE==="T"){ for(const a of ancestorsOf(VIEW)) EXP[a]=true; lsSet("td_tree_exp",EXP); }
+  if(!opts.fromHash && (location.hash||"") !== (VIEW?"#"+VIEW:"")) history.pushState(null,"",VIEW?"#"+VIEW:location.pathname+location.search);
+  renderChips(); renderTree(); renderPane(); window.scrollTo(0,0);
+  const n=document.querySelector(`.node[data-id="${VIEW}"]`);
+  if(n){ n.scrollIntoView({block:"nearest"}); n.classList.add("flash"); setTimeout(()=>n.classList.remove("flash"),1500); }
+  $("#rail").classList.remove("open");
+}
+
+// ───────────────────────── rail interactions
+$("#tree").addEventListener("click", e=>{
+  const n=e.target.closest(".node"); if(!n) return;
+  const id=n.dataset.id;
+  if(MODE==="T" && e.target.closest("[data-tw]")){
+    if(!(kids[id]||[]).length) return;
+    if(filtering()) return toast(t("folding_off"));
+    EXP[id]=!EXP[id]; lsSet("td_tree_exp",EXP); return renderTree();
+  }
+  go(id);
+});
+$("#stchips").addEventListener("click", e=>{ const c=e.target.closest(".chip"); if(!c) return; F.st=c.dataset.st; ROWPAGE=0; renderChips(); renderTree(); renderPane(); });
+$("#prchips").addEventListener("click", e=>{ const c=e.target.closest(".chip"); if(!c) return; F.pr=c.dataset.pr; ROWPAGE=0; renderChips(); renderTree(); renderPane(); });
+document.querySelectorAll(".tab").forEach(x=>x.onclick=()=>{ MODE=x.dataset.mode; F.st="all"; F.tag=""; renderChips(); renderTree(); });
+$("#exp1").onclick=()=>{ EXP={}; for(const x of kids[""]||[]) EXP[x.id]=true; lsSet("td_tree_exp",EXP); renderTree(); };
+$("#expall").onclick=()=>{
+  const all=DB.tickets.filter(x=>(kids[x.id]||[]).length), allOpen=all.length && all.every(x=>EXP[x.id]);
+  EXP={}; if(!allOpen) for(const x of all) EXP[x.id]=true;
+  if(allOpen && VIEW) for(const a of ancestorsOf(VIEW)) EXP[a]=true;
+  lsSet("td_tree_exp",EXP); renderTree(); $("#expall").textContent = t(allOpen?"expand_all":"collapse_all");
+};
+$("#tagsel").onchange=e=>{ F.tag=e.target.value; ROWPAGE=0; renderTree(); renderPane(); };
+let qh; $("#q").addEventListener("input", e=>{ clearTimeout(qh); qh=setTimeout(()=>{ F.q=e.target.value.trim(); ROWPAGE=0; renderTree(); renderPane(); },120); });
+$("#home").onclick=()=>go(null);
+$("#lang").onclick=()=>{ LANG = LANG==="zh"?"en":"zh"; lsSet("td_lang",LANG); renderAll(); };
+$("#mtoggle").onclick=()=>$("#rail").classList.toggle("open");
+$("#undo").onclick=async ()=>{ try{ await api("/api/undo",{}); toast(t("undone")); reload(); }catch(err){ toast(err.message); } };
+$("#new").onclick=()=>openDrawer(MODE, null, null);
+
+// ───────────────────────── pane interactions
+$("#pane").addEventListener("click", async e=>{
+  if(e.target.closest("[data-home]")) return go(null);
+  const pg=e.target.closest("[data-pg]"); if(pg){ const to=+pg.dataset.to; if(pg.dataset.pg==="log") LOGPAGE=to; else ROWPAGE=to; return renderPane(); }
+  if(e.target.id==="lg_add") return addLog(e.target.dataset.id);
+  if(e.target.id==="p_run" || e.target.id==="p_rej") return propAction(e.target);
+  const g=e.target.closest("[data-go]"); if(g){ e.preventDefault(); return go(g.dataset.go); }
+  const act=e.target.closest("[data-act]")?.dataset.act; const x=VIEW&&byId[VIEW]; if(!act||!x) return;
+  if(act==="edit") return openDrawer(x.id[0], x, null);
+  if(act==="child") return openDrawer("T", null, x.id);
+  try{
+    if(act==="cycle"){ const L=STS.T, nx=L[(L.indexOf(x.status)+1)%L.length]; await api("/api/tickets/"+x.id,{status:nx}); toast(t("status_to",x.id,t("st_"+nx))); }
+    if(act==="pcycle"){ const nx=PRIS[(PRIS.indexOf(x.priority||"")+1)%PRIS.length]; await api("/api/tickets/"+x.id,{priority:nx}); toast(t("pri_to",x.id,nx||t("pri_none"))); }
+    if(act==="retract"){
+      const reason=prompt(t("retract_reason"),""); if(!reason||!reason.trim()) return;
+      const sup=(prompt(t("retract_sup"),"")||"").trim();
+      await api(`/api/knowledge/${x.id}/retract`,{reason, superseded_by:sup, name:lsGet("td_name","")}); toast(t("retracted_x",x.id));
+    }
+    await reload();
+  }catch(err){ toast(err.message); }
+});
+async function addLog(id){
+  const text=$("#lg_text").value.trim(); if(!text) return toast(t("log_empty"));
+  const name=$("#lg_name").value.trim(); lsSet("td_name",name);
+  try{ await api(`/api/${collOf(id[0])}/${id}/log`,{text, name, session:$("#lg_sess").value.trim()}); await reload(); toast(t("logged")); }catch(err){ toast(err.message); }
+}
+async function propAction(b){
+  const id=b.dataset.id; b.disabled=true;
+  try{
+    if(b.id==="p_run"){ await api(`/api/proposals/${id}/run`,{by:"desk button"}); toast(t("approved_x",id)); }
+    else { const reason=prompt(t("reject_reason"),""); if(reason===null){ b.disabled=false; return; } await api(`/api/proposals/${id}/reject`,{reason}); toast(t("rejected_x",id)); }
+    await reload();
+  }catch(err){ toast(err.message); b.disabled=false; }
+}
+$("#pane").addEventListener("keydown", e=>{ if(e.target.id==="lg_text" && e.key==="Enter" && (e.ctrlKey||e.metaKey)){ e.preventDefault(); $("#lg_add").click(); } });
+setInterval(()=>{ const x=VIEW&&byId[VIEW]; if(x && x.exec && x.exec.state==="running") reload().catch(()=>{}); }, 2000);
+
+// ───────────────────────── drawer (create / edit any record)
+let ED = null, delArm = 0;
+function parentOptions(selfId, cur){
+  const bad=new Set(); if(selfId){ bad.add(selfId); for(const d of descendants(byId[selfId])) bad.add(d.id); }
+  let o=`<option value="">${esc(t("top_level"))}</option>`;
+  (function walk(p,dep){ for(const x of kids[p]||[]){ if(bad.has(x.id)) continue; o+=`<option value="${x.id}"${x.id===cur?" selected":""}>${"　".repeat(dep)}${esc(x.id)} ${esc(short(x.title,60))}</option>`; walk(x.id,dep+1); } })("",0);
+  return o;
+}
+const priSel = v => `<label>${t("f_priority")}<select name="priority">${PRIS.map(p=>`<option value="${p}"${(v||"")===p?" selected":""}>${esc(t(p?"pri_"+p:"pri_none"))}</option>`).join("")}</select></label>`;
+const inp = (n,lab,v,ph)=>`<label>${lab}<input name="${n}" value="${esc(v||"")}" placeholder="${esc(ph||"")}"></label>`;
+const ta = (n,lab,v,rows,ph)=>`<label>${lab}<textarea name="${n}" rows="${rows}" placeholder="${esc(ph||"")}">${esc(v||"")}</textarea></label>`;
+const linksText = x => (x?.links||[]).map(l=>l.label===l.url?l.url:l.label+"|"+l.url).join("\n");
+function openDrawer(kind, x, parent){
+  ED = {kind, id:x?x.id:null}; const f=$("#f");
+  $("#dtitle").textContent = x ? t("edit_x",x.id) : (kind==="T" ? (parent?t("new_child",parent):t("new_T")) : t("new_"+kind));
+  if(kind==="T") f.innerHTML = inp("title",t("f_title"),x?.title)+
+    `<label>${t("f_status")}<select name="status">${STS.T.map(s=>`<option value="${s}"${(x?.status||"open")===s?" selected":""}>${esc(t("st_"+s))}</option>`).join("")}</select></label>`+
+    priSel(x?.priority)+`<label>${t("f_parent")}<select name="parent">${parentOptions(x?.id, x?(x.parent||""):(parent||""))}</select></label>`+
+    ta("question",t("f_question"),x?.question,4,t("f_question_ph"))+inp("answer_title",t("f_answer_title"),x?.answer_title,t("f_answer_title_ph"))+
+    ta("answer",t("f_answer"),x?.answer,8,t("f_answer_ph"))+ta("links",t("f_links"),linksText(x),2,"label|https://…")+
+    inp("tags",t("f_tags"),(x?.tags||(parent?byId[parent].tags:[])||[]).join(", "))+inp("source",t("f_source"),x?.source);
+  else if(kind==="K") f.innerHTML = inp("title",t("f_k_title"),x?.title)+ta("body",t("f_k_body"),x?.body,8)+
+    ta("links",t("f_links"),linksText(x),2,"label|https://…")+inp("tags",t("f_tags"),(x?.tags||[]).join(", "))+inp("source",t("f_source"),x?.source);
+  else f.innerHTML = inp("title",t("f_title"),x?.title)+priSel(x?.priority)+inp("summary",t("f_summary"),x?.summary)+ta("body",t("f_body"),x?.body,8)+
+    inp("tickets",t("f_tickets"),(x?.tickets||(VIEW&&VIEW[0]==="T"?[VIEW]:[])).join(", "))+inp("approve_cmd",t("f_approve_cmd"),x?.approve_cmd)+
+    ta("links",t("f_links"),linksText(x),2,"label|https://…")+inp("tags",t("f_tags"),(x?.tags||[]).join(", "));
+  const del=$("#fdel"); del.style.display = (x && kind==="T") ? "" : "none"; del.classList.remove("arm"); del.textContent=t("del"); delArm=0;
+  $("#drawer").classList.add("on"); $("#drawer").setAttribute("aria-hidden","false");
+  setTimeout(()=>f.title.focus(),50);
+}
+function closeDrawer(){ $("#drawer").classList.remove("on"); $("#drawer").setAttribute("aria-hidden","true"); ED=null; }
+$("#fcancel").onclick=closeDrawer;
+$("#fsave").onclick=async ()=>{
+  if(!ED) return;
+  const f=$("#f"), b={};
+  for(const el of f.elements) if(el.name && el.name!=="parent") b[el.name] = el.tagName==="TEXTAREA" ? el.value : el.value.trim();
+  if(!b.title){ f.title.focus(); return toast(t("title_empty")); }
+  const coll=collOf(ED.kind);
+  try{
+    if(ED.id){
+      await api(`/api/${coll}/${ED.id}`, b);
+      if(ED.kind==="T"){ const par=f.parent.value||null; if((byId[ED.id].parent||null)!==par) await api(`/api/tickets/${ED.id}/move`,{parent:par}); }
+      toast(t("saved",ED.id)); closeDrawer(); await reload();
+    }else{
+      if(ED.kind==="T") b.parent=f.parent.value||null;
+      const x=await api(`/api/${coll}`, b); toast(t("created_x",x.id)); closeDrawer(); await reload(); go(x.id);
+    }
+  }catch(err){ toast(err.message); }
+};
+$("#fdel").onclick=async ()=>{
+  const el=$("#fdel");
+  if(!delArm){ delArm=1; el.classList.add("arm"); el.textContent=t("del_confirm"); setTimeout(()=>{ delArm=0; el.classList.remove("arm"); el.textContent=t("del"); },3000); return; }
+  try{ const par=byId[ED.id].parent; await api(`/api/tickets/${ED.id}/delete`,{}); toast(t("deleted")); closeDrawer(); await reload(); go(par||null); }catch(err){ toast(err.message); }
+};
+
+// ───────────────────────── keyboard
+document.addEventListener("keydown", e=>{
+  if($("#drawer").classList.contains("on")){
+    if(e.key==="Escape") closeDrawer();
+    if(e.key==="Enter" && (e.ctrlKey||e.metaKey)) $("#fsave").click();
+    return;
+  }
+  if(e.target.closest && e.target.closest("input,textarea,select")){ if(e.key==="Escape") e.target.blur(); return; }
+  if(e.key==="/"){ e.preventDefault(); $("#q").focus(); }
+  else if(e.key==="n"||e.key==="N"){ e.preventDefault(); openDrawer(MODE,null,null); }
+  else if((e.key==="e"||e.key==="E") && VIEW){ e.preventDefault(); openDrawer(VIEW[0], byId[VIEW], null); }
+  else if(e.key==="z" && (e.ctrlKey||e.metaKey)){ e.preventDefault(); $("#undo").click(); }
+  else if(e.key==="Escape" && VIEW){ const p=byId[VIEW].parent; go(p||null); }
+});
+
+// ───────────────────────── drag to re-parent (ticket tree only)
+let DRAG=null;
+const clearDrop=()=>document.querySelectorAll(".drop-in,.drop-before").forEach(x=>x.classList.remove("drop-in","drop-before"));
+$("#tree").addEventListener("dragstart", e=>{
+  const n=e.target.closest(".node"); if(!n||MODE!=="T") return;
+  DRAG=n.dataset.id; n.classList.add("dragging"); document.body.classList.add("dragmode");
+  e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain",DRAG);
+});
+document.addEventListener("dragend", ()=>{ DRAG=null; clearDrop(); document.body.classList.remove("dragmode"); document.querySelectorAll(".dragging").forEach(x=>x.classList.remove("dragging")); });
+function dropTarget(e){
+  const n=e.target.closest(".node"); if(!n||!DRAG) return null;
+  const id=n.dataset.id; if(id===DRAG || descendants(byId[DRAG]).some(d=>d.id===id)) return null;
+  const r=n.getBoundingClientRect(); return {n, id, before:(e.clientY-r.top) < r.height*0.3};
+}
+$("#tree").addEventListener("dragover", e=>{ const d=dropTarget(e); clearDrop(); if(!d) return; e.preventDefault(); d.n.classList.add(d.before?"drop-before":"drop-in"); });
+$("#tree").addEventListener("drop", async e=>{
+  const d=dropTarget(e); clearDrop(); if(!d) return; e.preventDefault();
+  const b=d.before ? {parent:byId[d.id].parent||null, before:d.id} : {parent:d.id};
+  try{ await api(`/api/tickets/${DRAG}/move`,b); toast(d.before?t("moved_before",DRAG,d.id):t("moved_in",DRAG,d.id)); if(!d.before){ EXP[d.id]=true; lsSet("td_tree_exp",EXP); } reload(); }catch(err){ toast(err.message); }
+});
+const tz=$("#topzone");
+tz.addEventListener("dragover", e=>{ if(DRAG) e.preventDefault(); });
+tz.addEventListener("drop", async e=>{ e.preventDefault(); const id=DRAG; try{ await api(`/api/tickets/${id}/move`,{parent:null}); toast(t("moved_top",id)); reload(); }catch(err){ toast(err.message); } });
+
+// ───────────────────────── hover preview for T/P/K references
+document.addEventListener("mouseover", e=>{
+  const r=e.target.closest ? e.target.closest("[data-ref]") : null, tip=$("#tip");
+  if(!r){ tip.style.display="none"; return; }
+  const x=byId[r.dataset.ref]; if(!x) return;
+  const st = x.status==="retracted" ? `<b style="color:var(--red-ink)">${t("k_retracted_tip")}</b>${x.superseded_by?" → "+esc(x.superseded_by):""} · ` : esc(t("st_"+x.status))+" · ";
+  const more = x.id[0]==="T" ? (x.answer_title||"") : x.id[0]==="P" ? (x.summary||"") : short(plain(x.body),220);
+  tip.innerHTML=`<div class="tm">${x.id} · ${st}${dt(x.updated)}</div><div style="font-weight:600">${esc(x.title)}</div>${more?`<div>${esc(more)}</div>`:""}`;
+  const b=r.getBoundingClientRect();
+  tip.style.left=Math.max(8,Math.min(b.left, innerWidth-Math.min(480,innerWidth*0.92)-8))+"px";
+  tip.style.top=(b.bottom+150>innerHeight ? Math.max(8,b.top-130) : b.bottom+6)+"px";
+  tip.style.display="block";
+});
+
+const fromHash=()=>{ const m=/^#([TPK]\d+)$/.exec(location.hash); go(m?m[1]:null,{fromHash:true}); };
+window.addEventListener("popstate", fromHash);
+window.addEventListener("hashchange", fromHash);
+applyI18n();
+reload().then(fromHash).catch(err=>{ $("#pane").innerHTML=`<div class="empty">${esc(t("load_fail",err.message))}</div>`; });
+</script>
+</body>
+</html>

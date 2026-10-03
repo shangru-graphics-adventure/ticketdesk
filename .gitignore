@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+demo-data/
+desk.json
+desk.json.tmp
+backups/
+runs/
+.ticketdesk/
