@@ -33,6 +33,22 @@ Knowledge (reusable facts that tickets cite as K001)
 
   desk.py check                              dangling ids, tickets citing retracted knowledge (exit 1 if any)
 
+Asking the human (shows up under "Needs you" on the page, with a chime)
+  desk.py ask --title "Which cache key?" --situation "background, what each option costs" [--options "A|B|C"]
+              [--tickets T012] [--priority P0]   the answer comes back to this session (typed if idle, else via the inbox hook)
+  desk.py alist [--all]                      open asks (all: answered / withdrawn too)
+  desk.py answer A001 [--choice B] [--text "…"]     answer from the command line
+  desk.py awithdraw A001
+  desk.py needs                              everything waiting on the human: pending proposals, open asks, overdue ETAs
+
+Time
+  desk.py eta T012 30                        about 30 minutes left; the clock starts now and the page counts down (0 clears)
+
+Journal (one plain-language entry per finished piece of work)
+  desk.py jadd --title T --result R [--story S] [--why W] [--goal G] [--next N] [--tickets "T012 (cache key)"]
+               [--start "10-04 09:10"] [--end "10-04 10:40"] [--session ID] [--name NAME]
+  desk.py jlist [KEYWORD]
+
 Any text argument written as @path is read from that file.
 Session id for logs: --session, else $DESK_SESSION, else $CLAUDE_SESSION_ID. Name: --name, else $DESK_SESSION_NAME,
 else the current directory name.  Server: $DESK_URL (default http://127.0.0.1:8750), data dir $DESK_DATA.
@@ -269,6 +285,18 @@ def main():
     p.add_argument("--session"); p.add_argument("--name")
     sp.add_parser("check")
 
+    p = sp.add_parser("ask"); p.add_argument("--title", required=True); p.add_argument("--situation", default=""); p.add_argument("--options", default="")
+    p.add_argument("--tickets", default=""); p.add_argument("--priority", choices=PRI, default=""); p.add_argument("--session"); p.add_argument("--name")
+    p = sp.add_parser("alist"); p.add_argument("--all", action="store_true")
+    p = sp.add_parser("answer"); p.add_argument("id"); p.add_argument("--choice", default=""); p.add_argument("--text", default="")
+    p = sp.add_parser("awithdraw"); p.add_argument("id")
+    sp.add_parser("needs")
+    p = sp.add_parser("eta"); p.add_argument("id"); p.add_argument("minutes", type=float)
+    p = sp.add_parser("jadd")
+    for k in ("title", "result", "story", "why", "goal", "next", "tickets", "start", "end", "session", "name"):
+        p.add_argument("--" + k, required=k in ("title", "result"))
+    p = sp.add_parser("jlist"); p.add_argument("kw", nargs="?")
+
     a = ap.parse_args()
     if hasattr(a, "id"):
         a.id = a.id.upper()
@@ -387,6 +415,46 @@ def main():
             print("%-16s %s" % (i["kind"], i["msg"]))
         print("%d issue(s)" % len(issues))
         sys.exit(1 if issues else 0)
+
+    if c == "ask":
+        w = who(a)
+        x = call("/api/asks", dict(title=txt(a.title), situation=txt(a.situation), options=a.options, tickets=a.tickets, priority=a.priority,
+                                   from_sid=w["session"], from_name=w["name"]))
+        print("asked %s: %s%s" % (x["id"], x["title"], "" if x["from_sid"] else
+                                  "\n(no session id: the answer will only be shown on the page; pass --session or set DESK_SESSION)")); return
+    if c == "alist":
+        for x in call("/api/state")["asks"]:
+            if a.all or x["status"] == "open":
+                ans = (" -> %s %s" % (x.get("choice") or "", x.get("answer") or "")).rstrip() if x["status"] == "answered" else ""
+                print("%s [%s]%s %s%s%s" % (x["id"], x["status"], pri(x), x["title"], ("  options: " + " / ".join(x["options"])) if x.get("options") else "", ans))
+        return
+    if c in ("answer", "awithdraw"):
+        x = call("/api/asks/%s/%s" % (a.id, "answer" if c == "answer" else "withdraw"),
+                 {"choice": a.choice, "text": txt(a.text), "via": "cli"} if c == "answer" else {})
+        dl = x.get("delivered") or {}
+        print("%s %s%s" % (a.id, x["status"], (" | delivered: %s %s" % (dl.get("mode") or "failed", dl.get("why") or "")).rstrip() if dl else "")); return
+    if c == "needs":
+        att = call("/api/attention")
+        for i in att["items"]:
+            print("%s %-8s%s %s%s" % (i["id"], i["kind"], pri(i), i["title"], ("\n      " + i["summary"].splitlines()[0][:120]) if i.get("summary") else ""))
+        for o in att["overdue"]:
+            print("%s overdue  %s  (%d min over a %g min estimate)" % (o["id"], o["title"], o["over_min"], o["eta_min"]))
+        if not att["items"] and not att["overdue"]:
+            print("nothing is waiting on you")
+        return
+    if c == "eta":
+        x = call("/api/tickets/" + a.id, {"eta": a.minutes or None})
+        print("%s eta %s" % (a.id, ("%g min, clock started" % x["eta"]["min"]) if x.get("eta") else "cleared")); return
+    if c == "jadd":
+        b = {k: txt(getattr(a, k)) for k in ("title", "result", "story", "why", "goal", "next", "tickets", "start", "end") if getattr(a, k)}
+        w = who(a)
+        b.update(session=w["session"], name=w["name"], cwd=os.getcwd())
+        x = call("/api/journal", b); print("journal %s %s" % (x["id"], x["title"])); return
+    if c == "jlist":
+        for j in reversed(call("/api/state")["journal"]):
+            if not a.kw or a.kw.lower() in json.dumps(j, ensure_ascii=False).lower():
+                print("%s %s  %s\n     %s" % (j["id"], (j.get("end") or j.get("created") or "")[:16], j["title"], j.get("result", "").replace("\n", " ")[:140]))
+        return
 
 
 if __name__ == "__main__":

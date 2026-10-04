@@ -75,6 +75,37 @@ with ▶ without moving or switching tabs.
 
 ![sessions tab](docs/sessions.png)
 
+## Needs you, ETA clock and Journal
+
+- **Needs you** (first tab, with a badge): every proposal waiting for approval, every open **ask**, and every ticket
+  running more than 1.5x over its ETA. An ask is a question an agent needs *you* to decide (`desk.py ask --title …
+  --options "A|B" --session <id>`). Click an option or write a few words; the answer is logged on the linked tickets
+  and **delivered back to the session that asked**: typed into its terminal when it is idle, otherwise queued for the
+  inbox hook (below). Proposals can be approved or rejected right on the card. The page polls every 5 s and, when
+  something new arrives, chimes (🔔 toggle) and shows a desktop notification. `DESK_CHIME=1` also beeps on the server
+  machine, for when no page is open.
+- **ETA clock**: `desk.py eta T012 30` means "about 30 minutes left", starting now. The ticket page counts down and
+  turns red once it is over. Set it when work starts; there is no need to keep updating it.
+- **Journal** (last tab): one entry per finished piece of work, in plain words: story, why, goal, result, next step,
+  the tickets involved (`T012 (cache key)`: id plus a few words). `**bold**` marks a conclusion that holds and is
+  highlighted. Agents write it with `desk.py jadd`; a live session's entry has a *Go to session* button.
+
+### Inbox hook (messages for busy sessions)
+
+Replies from the Sessions tab and answers to asks are typed into the session only when it is idle. When it is busy
+(or closed), they go to `<data>/inbox/<session id>.jsonl`, and [`integrations/claude-code/inbox_hook.py`](integrations/claude-code/inbox_hook.py)
+hands them over: after the session's next tool call (added to its context) or at the end of the turn (the turn is
+held open until it has read them). Each message is delivered exactly once (the file is claimed by rename), and a
+queued message can still be taken back (`POST /api/sessions/<sid>/unsend`). Install it in `~/.claude/settings.json`:
+
+```json
+"PostToolUse":      [{"hooks": [{"type": "command", "command": "python \"<repo>/integrations/claude-code/inbox_hook.py\""}]}],
+"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "python \"<repo>/integrations/claude-code/inbox_hook.py\""}]}],
+"Stop":             [{"hooks": [{"type": "command", "command": "python \"<repo>/integrations/claude-code/inbox_hook.py\""}]}]
+```
+
+When nothing is queued the hook does a single `stat()` and exits. Set `DESK_DATA` if your data dir is not `~/.ticketdesk`.
+
 ## The CLI (for agents)
 
 ```
@@ -82,6 +113,8 @@ desk.py tree [kw] [--status …] [--priority P0|P1|P2|-]   desk.py show T012 [--
 desk.py add / update / log / move                         desk.py handoff T012 T015 --name "…"
 desk.py plist / pshow / padd / pupdate / plog / papprove / preject / pdone
 desk.py klist / kshow / kadd / kupdate / klog / kretract  desk.py check
+desk.py ask / alist / answer / awithdraw / needs          desk.py eta T012 30
+desk.py jadd / jlist
 ```
 
 `python desk.py -h` lists every option. Any text argument written as `@file.md` is read from that file.
@@ -140,6 +173,13 @@ POST /api/proposals                 create {title, summary, body, tickets, appro
 POST /api/proposals/<id>/{log|approve|run|reject|done}
 POST /api/knowledge                 create {title, body, tags, links, source}
 POST /api/knowledge/<id>/{log|retract}    retract: {reason, superseded_by}
+GET  /api/attention                 pending proposals + open asks (+ sig that changes when one is added) + overdue ETAs
+POST /api/asks                      create {title, situation, options (list or "A|B"), tickets, priority, from_sid, from_name}
+POST /api/asks/<id>/{answer|withdraw}     answer: {choice, text, via}; delivered to from_sid (typed or queued)
+POST /api/journal                   create {title, result, story, why, goal, next, tickets, start, end, session, name, cwd}
+POST /api/journal/<id>              partial update         POST /api/journal/<id>/delete
+GET  /api/sessions/<sid>/messages   what the desk sent a session (typed / delivered by the hook / still queued)
+POST /api/sessions/<sid>/unsend     {id}  take back a queued message
 POST /api/undo
 ```
 
@@ -164,6 +204,10 @@ ticket 才是跨对话的权威记录。三类记录：**Ticket**（可嵌套的
 「对话」页签列出本机活着的 Claude Code 对话：每个对话这一轮的提问、**它运算时你插的问题**（没建 ticket 的也看得到，可一键建 ticket）、
 涉及的 ticket；一轮结束后显示要点，可直接在框里回答（经 VS Code 桥打进它的终端）。`integrations/vscode` 里的钩子会给等你回答的
 标签名前加 ▶ —— 不挪标签、不切标签、不闪。
+「待我」页签汇总所有等你的事：待批提案、agent 问你的问题（`desk.py ask`，点选项或写几句就答，答案送回提问的对话：空闲就打进终端，
+在跑就由收件箱钩子在它下一次工具调用后或本轮结束时送达）、超出预计时间 1.5 倍的 ticket；新事项响铃并弹通知。
+ticket 可以上「预计剩余时间」钟（`desk.py eta T012 30`），页面倒数，超时变红。「流水账」页签每件事告一段落写一条小白话记录
+（来龙去脉 / 动机 / 目的 / 成果 / 下一步），`**加粗**` 的结论蓝色高亮。
 工作流规范见 [`docs/WORKFLOW.md`](docs/WORKFLOW.md)：先挂卡再动手、失败的尝试必须记、说出口的下一步当场入卡、
 P0 接着做不用问、P2 搁置写理由、交接走 ticket。
 

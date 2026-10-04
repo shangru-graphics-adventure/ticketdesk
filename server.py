@@ -6,6 +6,12 @@ Three record types live in one JSON file:
   tickets    T001  nested question/answer cards with an append-only work log
   proposals  P001  actions that need a human's approval before anyone runs them
   knowledge  K001  reusable facts that tickets cite; can be retracted / superseded
+  asks       A001  a question an agent needs the human to decide (options and/or free text); the answer is
+                   delivered back to the asking session (typed if it is idle, otherwise queued for the inbox hook)
+  journal    J001  one plain-language entry per finished piece of work: story, why, goal, result, next step
+
+GET /api/attention is the "needs you" list: pending proposals, open asks and tickets whose ETA clock is
+more than 1.5x over. Its "sig" changes whenever a new item appears, so a page can chime.
 
 Every write is atomic, the previous file is rotated into backups/, and the last
 60 writes can be undone. Pure standard library, Python 3.8+.
@@ -33,7 +39,12 @@ STATUSES = ("open", "partial", "answered")
 PRIORITIES = ("P0", "P1", "P2", "")
 P_STATUSES = ("pending", "running", "done", "rejected")
 K_STATUSES = ("current", "retracted")
-T_FIELDS = ("title", "question", "answer_title", "answer", "status", "priority", "tags", "links", "source")
+A_STATUSES = ("open", "answered", "withdrawn")
+T_FIELDS = ("title", "question", "answer_title", "answer", "status", "priority", "tags", "links", "source",
+            "mine",   # mine: the human's own understanding of the ticket, edited in place (agents leave it alone)
+            "eta")    # eta: {min, start} -- estimated minutes left, clock started when work starts; null clears it
+J_FIELDS = ("title", "story", "tickets", "why", "goal", "result", "next", "session", "name", "start", "end", "cwd")
+MAX_ETA_MIN = 60 * 24 * 30
 P_FIELDS = ("title", "summary", "body", "status", "priority", "approve_cmd", "tickets", "tags", "links")
 K_FIELDS = ("title", "body", "tags", "links", "source")
 REF_RE = re.compile(r"\b([TPK])(\d{3,})\b")
@@ -58,10 +69,10 @@ class Store:
     def load(self):
         with open(self.path, encoding="utf-8") as f:
             d = json.load(f)
-        for k in ("tickets", "proposals", "knowledge"):
+        for k in ("tickets", "proposals", "knowledge", "asks", "journal"):
             d.setdefault(k, [])
         d.setdefault("next", {})
-        for k in "TPK":
+        for k in "TPKAJ":
             d["next"].setdefault(k, 1)
         return d
 
@@ -100,7 +111,8 @@ class Store:
 
 
 def empty_db():
-    return {"version": VERSION, "next": {"T": 1, "P": 1, "K": 1}, "tickets": [], "proposals": [], "knowledge": []}
+    return {"version": VERSION, "next": {"T": 1, "P": 1, "K": 1, "A": 1, "J": 1},
+            "tickets": [], "proposals": [], "knowledge": [], "asks": [], "journal": []}
 
 
 def now():
@@ -153,6 +165,8 @@ def clean_fields(body, allowed, partial, statuses, defaults):
             v = str(v or "").upper().strip()
             if v not in PRIORITIES:
                 raise ValueError("priority must be one of P0, P1, P2 or empty")
+        elif k == "eta":
+            v = clean_eta(v)
         else:
             v = "" if v is None else str(v)
         out[k] = v
@@ -166,13 +180,32 @@ def clean_fields(body, allowed, partial, statuses, defaults):
     return out
 
 
-T_DEFAULTS = {"status": "open", "priority": "", "question": "", "answer_title": "", "answer": "", "source": "", "tags": list, "links": list}
+def clean_eta(v):
+    """Minutes left (number) -> clock started now; {min, start} kept as is; null / 0 / "" clears."""
+    if v in (None, "", 0, "0") or (isinstance(v, dict) and not v.get("min")):
+        return None
+    try:
+        m = float(v["min"] if isinstance(v, dict) else v)
+        st = float(v.get("start") or time.time()) if isinstance(v, dict) else time.time()
+    except (TypeError, ValueError):
+        raise ValueError("eta must be a number of minutes")
+    if not 0 < m <= MAX_ETA_MIN:
+        raise ValueError("eta must be in (0, %d] minutes" % MAX_ETA_MIN)
+    return {"min": round(m, 2), "start": round(st, 3)}
+
+
+def eta_left(e, t=None):
+    """Seconds left on an ETA clock (negative = over)."""
+    return e["min"] * 60 - ((t or time.time()) - e["start"])
+
+
+T_DEFAULTS = {"status": "open", "priority": "", "question": "", "answer_title": "", "answer": "", "source": "", "mine": "", "tags": list, "links": list}
 P_DEFAULTS = {"status": "pending", "priority": "", "summary": "", "body": "", "approve_cmd": "", "tickets": list, "tags": list, "links": list}
 K_DEFAULTS = {"body": "", "source": "", "tags": list, "links": list}
 
 
 def find(d, rid):
-    coll = {"T": "tickets", "P": "proposals", "K": "knowledge"}.get(rid[:1])
+    coll = {"T": "tickets", "P": "proposals", "K": "knowledge", "A": "asks", "J": "journal"}.get(rid[:1])
     for x in d.get(coll or "tickets", []):
         if x["id"] == rid:
             return x
@@ -252,6 +285,42 @@ def cited_by(d, kid):
     return [x["id"] for c in ("tickets", "proposals") for x in d[c] if kid in refs_in(x)]
 
 
+def attention(d, runner=None):
+    """Everything waiting on the human, newest first, plus tickets whose ETA clock is more than 1.5x over."""
+    items = []
+    for p in d["proposals"]:
+        if p["status"] == "pending":
+            items.append(dict(kind="proposal", id=p["id"], title=p["title"], summary=p.get("summary") or "", body=(p.get("body") or "")[:1500],
+                              tickets=p.get("tickets") or [], priority=p.get("priority") or "", created=p.get("created"),
+                              approve_cmd=p.get("approve_cmd") or "", runnable=bool(runner and runner.script_of(p.get("approve_cmd")))))
+    for a in d["asks"]:
+        if a["status"] == "open":
+            items.append(dict(kind="ask", id=a["id"], title=a["title"], summary=a.get("situation") or "", options=a.get("options") or [],
+                              tickets=a.get("tickets") or [], priority=a.get("priority") or "", created=a.get("created"),
+                              from_sid=a.get("from_sid") or "", from_name=a.get("from_name") or ""))
+    items.sort(key=lambda x: str(x.get("created") or ""), reverse=True)
+    over, t = [], time.time()
+    for x in d["tickets"]:
+        e = x.get("eta")
+        if e and x["status"] != "answered" and eta_left(e, t) < -0.5 * e["min"] * 60:
+            over.append(dict(id=x["id"], title=x["title"], eta_min=e["min"], over_min=round(-eta_left(e, t) / 60)))
+    return dict(items=items, n=len(items), sig=",".join(sorted(i["id"] for i in items)), overdue=over)
+
+
+def chime():
+    """Optional sound on the server machine when something new needs the human (DESK_CHIME=1, Windows only).
+    The page chimes by itself; this one is for when no page is open."""
+    if os.environ.get("DESK_CHIME") != "1" or sys.platform != "win32":
+        return
+    def run():
+        try:
+            import winsound
+            winsound.MessageBeep()
+        except Exception:  # noqa: BLE001
+            pass
+    threading.Thread(target=run, daemon=True).start()
+
+
 # ---------------------------------------------------------------- approval scripts
 
 class Runner:
@@ -312,6 +381,45 @@ class Runner:
 
 # ---------------------------------------------------------------- HTTP
 
+
+def path_info(p, cwd=""):
+    """Resolve a path mentioned in text (relative ones against cwd, then home) and list its parent folders."""
+    p = os.path.expanduser((p or "").strip().strip("`'\""))
+    if not p:
+        return {}
+    cands = [p] if os.path.isabs(p) else [os.path.join(c, p) for c in (cwd, os.path.expanduser("~")) if c]
+    ab = next((c for c in cands if os.path.exists(c)), cands[0])
+    ab = os.path.normpath(ab)
+    par, d = [], os.path.dirname(ab)
+    while d and len(par) < 12:
+        par.append(d)
+        nd = os.path.dirname(d)
+        if nd == d:
+            break
+        d = nd
+    ex = os.path.exists(ab)
+    return {"abs": ab, "exists": ex, "isdir": os.path.isdir(ab),
+            "size": os.path.getsize(ab) if ex and os.path.isfile(ab) else None, "parents": par[::-1]}
+
+
+def open_local(fp, select=False):
+    """Open a folder (or reveal a file) in the OS file manager. Local machine only; POST + X-Desk-Client guarded."""
+    import subprocess
+    fp = os.path.normpath(os.path.expanduser(fp))
+    if not fp or not os.path.exists(fp):
+        return {"ok": False, "why": "not found"}
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen(["explorer", "/select,", fp] if select or not os.path.isdir(fp) else ["explorer", fp])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", fp] if select or not os.path.isdir(fp) else ["open", fp])
+        else:
+            subprocess.Popen(["xdg-open", fp if os.path.isdir(fp) else os.path.dirname(fp)])
+        return {"ok": True}
+    except Exception as e:                      # noqa: BLE001
+        return {"ok": False, "why": str(e)}
+
+
 def make_handler(store, runner, port):
     allowed_hosts = {"127.0.0.1:%d" % port, "localhost:%d" % port, "[::1]:%d" % port}
 
@@ -348,9 +456,15 @@ def make_handler(store, runner, port):
             if p in ("/", "/index.html"):
                 with open(os.path.join(HERE, "index.html"), "rb") as f:
                     return self.send(200, f.read(), "text/html; charset=utf-8")
-            if p in ("/sessions.js", "/md.js"):
+            if p in ("/sessions.js", "/md.js", "/xref.js", "/extras.js"):
                 with open(os.path.join(HERE, p[1:]), "rb") as f:
                     return self.send(200, f.read(), "text/javascript; charset=utf-8")
+            if p == "/api/xref/rules":                     # xref.js: URLs and file/folder paths in text become links (T/P/K refs are linked by md.js)
+                return self.send(200, {"rules": [], "gloss": {}, "preview": False})
+            if p == "/api/xref/path":
+                from urllib.parse import parse_qs
+                qs = parse_qs(urlsplit(self.path).query)
+                return self.send(200, path_info(qs.get("p", [""])[0], qs.get("cwd", [""])[0]))
             if p == "/api/health":
                 return self.send(200, {"ok": True, "version": VERSION, "allow_run": bool(runner.allow and runner.dir)})
             with store.lock:
@@ -359,10 +473,16 @@ def make_handler(store, runner, port):
                 return self.send(200, d)
             if p == "/api/check":
                 return self.send(200, check(d))
+            if p == "/api/attention":                      # "needs you": pending proposals, open asks, overdue ETAs
+                return self.send(200, attention(d, runner))
             if p == "/api/sessions":                       # live Claude Code sessions (sessions.py)
                 import sessions
                 return self.send(200, sessions.build(d))
-            m = re.fullmatch(r"/api/(tickets|proposals|knowledge)/([TPK]\d+)", p)
+            m = re.fullmatch(r"/api/sessions/([0-9a-f-]{36})/messages", p)
+            if m:                                          # what the desk sent this session: typed, delivered by the hook, still queued
+                import sessions
+                return self.send(200, sessions.messages(m.group(1)))
+            m = re.fullmatch(r"/api/(tickets|proposals|knowledge|asks|journal)/([TPKAJ]\d+)", p)
             if m:
                 try:
                     x = find(d, m.group(2))
@@ -386,21 +506,32 @@ def make_handler(store, runner, port):
                     raise ValueError("body must be a JSON object")
                 if p == "/api/undo":
                     return self.send(200, {"ok": True, "left": store.undo_last()})
-                m = re.fullmatch(r"/api/sessions/([0-9a-f-]{36})/(reply|focus)", p)
+                if p == "/api/xref/open":                  # open a folder, or reveal a file, in the OS file manager
+                    r = open_local(str(b.get("path") or ""), bool(b.get("select")))
+                    return self.send(200 if r.get("ok") else 404, r)
+                m = re.fullmatch(r"/api/sessions/([0-9a-f-]{36})/(reply|focus|unsend)", p)
                 if m:
                     import sessions
                     sid, act = m.groups()
-                    r = sessions.reply(sid, str(b.get("text") or "")) if act == "reply" else sessions.focus(sid)
+                    r = (sessions.reply(sid, str(b.get("text") or "")) if act == "reply" else
+                         sessions.unqueue(sid, str(b.get("id") or "")) if act == "unsend" else sessions.focus(sid))
                     return self.send(200 if r.get("ok") else 409, r if r.get("ok") else {"error": r.get("why") or "failed"})
-                m = re.fullmatch(r"/api/(tickets|proposals|knowledge)(?:/([TPK]\d+)(?:/(\w+))?)?", p)
+                m = re.fullmatch(r"/api/(tickets|proposals|knowledge|asks|journal)(?:/([TPKAJ]\d+)(?:/(\w+))?)?", p)
                 if not m:
                     return self.send(404, {"error": "not found"})
                 coll, rid, act = m.groups()
-                handler = {"tickets": self.ticket, "proposals": self.proposal, "knowledge": self.knowledge}[coll]
-                after = []
-                res = store.mutate(lambda d: handler(d, b, rid, act, after))
+                if rid and rid[0] != {"tickets": "T", "proposals": "P", "knowledge": "K", "asks": "A", "journal": "J"}[coll]:
+                    return self.send(404, {"error": "%s is not in %s" % (rid, coll)})
+                handler = {"tickets": self.ticket, "proposals": self.proposal, "knowledge": self.knowledge,
+                           "asks": self.ask, "journal": self.journal}[coll]
+                after, deliver = [], []
+                res = store.mutate(lambda d: handler(d, b, rid, act, after) if coll != "asks" else self.ask(d, b, rid, act, deliver))
                 for job in after:
                     threading.Thread(target=runner.run, args=job, daemon=True).start()
+                if coll == "asks" and rid is None or coll == "proposals" and rid is None and res.get("status") == "pending":
+                    chime()
+                for aid, sid, text in deliver:             # outside the store lock: typing may take a few seconds
+                    res = self.deliver_answer(aid, sid, text)
                 return self.send(200, res)
             except KeyError as e:
                 self.send(404, {"error": str(e).strip("'")})
@@ -547,6 +678,101 @@ def make_handler(store, runner, port):
             k["updated"] = now()
             return k
 
+        def ask(self, d, b, aid, act, deliver):
+            """An agent asks the human to decide something. Answer -> logged on the linked tickets and delivered to the asker."""
+            if aid is None:
+                title = str(b.get("title") or "").strip()
+                if not title:
+                    raise ValueError("title must not be empty")
+                opts = b.get("options") or []
+                if isinstance(opts, str):
+                    opts = [x.strip() for x in opts.split("|") if x.strip()]
+                opts = [str(x).strip() for x in opts if str(x).strip()]
+                if len(opts) > 12:
+                    raise ValueError("at most 12 options")
+                tk = [x.upper() for x in split_list(b.get("tickets"))]
+                check_ticket_refs(d, tk)
+                pr = str(b.get("priority") or "").upper().strip()
+                if pr not in PRIORITIES:
+                    raise ValueError("priority must be one of P0, P1, P2 or empty")
+                a = dict(id=new_id(d, "A"), title=title, situation=str(b.get("situation") or ""), options=opts, tickets=tk, priority=pr,
+                         from_sid=str(b.get("from_sid") or b.get("session") or "").strip(), from_name=str(b.get("from_name") or b.get("name") or "").strip(),
+                         status="open", created=now(), updated=now())
+                d["asks"].append(a)
+                for tid in tk:
+                    find(d, tid).setdefault("log", []).append({"ts": now(), "session": a["from_sid"], "name": a["from_name"] or "ask",
+                                                               "text": "[ask %s] %s\n%s%s" % (a["id"], title, a["situation"],
+                                                                                              ("\noptions: " + " / ".join(opts)) if opts else "")})
+                return a
+            a = find(d, aid)
+            if act not in ("answer", "withdraw"):
+                raise KeyError("unknown action: %s" % act)
+            if a["status"] != "open":
+                raise ValueError("%s is already %s" % (aid, a["status"]))
+            if act == "withdraw":
+                a["status"] = "withdrawn"
+            else:
+                choice, text = str(b.get("choice") or "").strip(), str(b.get("text") or "").strip()
+                if not choice and not text:
+                    raise ValueError("an answer needs a choice or some text")
+                if choice and a.get("options") and choice not in a["options"]:
+                    raise ValueError("choice must be one of the options")
+                a.update(status="answered", choice=choice, answer=text, answered_at=now(), answered_via=str(b.get("via") or "desk"))
+                for tid in a.get("tickets") or []:
+                    find(d, tid).setdefault("log", []).append({"ts": now(), "session": "", "name": "answer (%s)" % a["answered_via"],
+                                                               "text": "[answer %s] %s\n%s%s" % (aid, a["title"], ("chose: " + choice + "\n") if choice else "", text)})
+                if a.get("from_sid") and re.fullmatch(r"[0-9a-f-]{36}", a["from_sid"]):
+                    msg = "Answer to your ask %s \"%s\": %s%s" % (aid, a["title"], ("chose \"%s\". " % choice) if choice else "", text)
+                    deliver.append((aid, a["from_sid"], msg))
+                else:
+                    a["delivered"] = {"ok": False, "why": "the ask has no session id to deliver to"}
+            a["updated"] = now()
+            return a
+
+        def deliver_answer(self, aid, sid, text):
+            import sessions
+            try:
+                r = sessions.deliver(sid, text, "answer " + aid)
+            except Exception as e:  # noqa: BLE001 - record the failure on the ask
+                r = {"ok": False, "why": repr(e)}
+
+            def f(d):
+                a = find(d, aid)
+                a["delivered"] = dict(r, ts=now())
+                return a
+            return store.mutate(f)
+
+        def journal(self, d, b, jid, act, after):
+            """Plain-language journal: one entry per finished piece of work. Create, update (partial) or delete."""
+            def clean_j(partial):
+                out = {}
+                for k in J_FIELDS:
+                    if k in b:                    # tickets is text: "T012 (cache key), T015 (runner cost)" -- ids with a few words each
+                        v = b[k]
+                        out[k] = (", ".join(map(str, v)) if isinstance(v, list) else str(v if v is not None else "")).strip()
+                if not partial:
+                    for k in ("title", "result"):
+                        if not out.get(k):
+                            raise ValueError("journal entry needs %s" % k)
+                elif "title" in out and not out["title"]:
+                    raise ValueError("title must not be empty")
+                return out
+            if jid is None:
+                j = clean_j(False)
+                j.update(id=new_id(d, "J"), created=now(), updated=now())
+                d["journal"].append(j)
+                return j
+            j = find(d, jid)
+            if act is None:
+                j.update(clean_j(True))
+            elif act == "delete":
+                d["journal"].remove(j)
+                return {"ok": True}
+            else:
+                raise KeyError("unknown action: %s" % act)
+            j["updated"] = now()
+            return j
+
     return H
 
 
@@ -559,7 +785,9 @@ def main():
     ap.add_argument("--scripts-dir", default=os.environ.get("DESK_SCRIPTS_DIR"), help="default: <data>/scripts")
     a = ap.parse_args()
     store = Store(a.data)
-    runner = Runner(store, a.allow_run, a.scripts_dir or os.path.join(store.dir, "scripts"))
+    import sessions
+    sessions.INBOX = os.path.join(store.dir, "inbox")     # integrations/claude-code/inbox_hook.py reads the same folder
+    runner =Runner(store, a.allow_run, a.scripts_dir or os.path.join(store.dir, "scripts"))
     srv = ThreadingHTTPServer(("127.0.0.1", a.port), make_handler(store, runner, a.port))
     print("ticketdesk http://127.0.0.1:%d/  data=%s  allow_run=%s" % (a.port, store.path, a.allow_run), flush=True)
     try:

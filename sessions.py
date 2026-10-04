@@ -13,7 +13,7 @@ What is each running session working on, which tickets does that touch, and whic
                        followed by a unit (marked as a guess), plus every ticket the session logged to during the turn
   * reply / focus      through the VS Code bridge in integrations/vscode (optional): POST /type and /show on 127.0.0.1:8721-8728
 
-Everything is read-only except reply (which types into the session's terminal) and focus. Standard library only.
+Everything is read-only except reply / deliver (type into the session's terminal, or queue it for the inbox hook) and focus. Standard library only.
 Set CLAUDE_DIR to point somewhere other than ~/.claude.
 """
 import ctypes, glob, json, os, re, subprocess, sys, time, urllib.request
@@ -330,11 +330,96 @@ def focus(sid):
 
 
 def reply(sid, text):
-    """Type one line into the session's terminal and press Enter. Only when it is idle, so nothing is typed into a running turn."""
-    text = re.sub(r"\s*\n\s*", " ", (text or "").strip())
-    if not text:
+    """Reply to a live session. Idle -> typed into its terminal (VS Code bridge) and Enter pressed.
+    Running, or showing a permission prompt -> queued in the inbox; the inbox hook hands it over after the
+    session's next tool call (or holds the turn open at Stop), so nothing is typed into a running turn."""
+    if not str(text or "").strip():
         raise ValueError("empty reply")
-    s, sp = _shell_of(sid)
-    if s.get("status") != "idle":                     # busy, or showing a permission prompt: typing now would land in the wrong place
-        raise ValueError("the session is not idle (%s); reply when it stops" % s.get("status"))
-    return _bridge("/type", {"pid": sp, "text": "【desk】" + text[:3900]})
+    _shell_of(sid)                                    # must be a live session
+    return deliver(sid, text, "you")
+
+
+# ---------------------------------------------------------------- inbox (messages for sessions that are busy or closed)
+# <data>/inbox/<sid>.jsonl, append-only. integrations/claude-code/inbox_hook.py claims the file with a rename
+# (so a message is never delivered twice and never races the server's append), injects the messages and moves
+# them to <sid>.done.jsonl. The server points INBOX at <data>/inbox at start-up.
+INBOX = os.path.join(os.path.expanduser("~"), ".ticketdesk", "inbox")
+
+
+def _now():
+    return time.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def queue(sid, text, frm):
+    os.makedirs(INBOX, exist_ok=True)
+    m = dict(id="m%d" % time.time_ns(), ts=_now(), frm=frm, text=text)
+    with open(os.path.join(INBOX, sid + ".jsonl"), "a", encoding="utf-8") as f:
+        f.write(json.dumps(m, ensure_ascii=False) + "\n")
+    return m
+
+
+def _read_jsonl(path):
+    out = []
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    out.append(json.loads(line))
+                except ValueError:
+                    pass
+    except OSError:
+        pass
+    return out
+
+
+def messages(sid, n=30):
+    """Delivered (newest n) + still queued messages for one session."""
+    done = _read_jsonl(os.path.join(INBOX, sid + ".done.jsonl"))[-n:]
+    return done + [dict(m, mode="queued") for m in _read_jsonl(os.path.join(INBOX, sid + ".jsonl"))]
+
+
+def unqueue(sid, mid):
+    """Take back a queued message that has not been delivered yet. Same claim-by-rename as the hook:
+    if the file is gone, the hook already took it and it cannot be recalled."""
+    f = os.path.join(INBOX, sid + ".jsonl")
+    claim = os.path.join(INBOX, "%s.unsend%d" % (sid, time.time_ns()))
+    try:
+        os.replace(f, claim)
+    except OSError:
+        return {"ok": False, "why": "already delivered"}
+    keep, hit = [], False
+    for m in _read_jsonl(claim):
+        if m.get("id") == mid and not hit:
+            hit = True
+            continue
+        keep.append(json.dumps(m, ensure_ascii=False) + "\n")
+    if keep:
+        with open(f, "a", encoding="utf-8") as fh:
+            fh.write("".join(keep))
+    os.remove(claim)
+    return {"ok": hit, "why": "" if hit else "not in the queue; probably delivered already"}
+
+
+def deliver(sid, text, frm="you"):
+    """Get text to a session one way or another. -> {ok, mode: typed|queued, why}.
+    typed:  the session is live and idle and a VS Code bridge owns its terminal (same as you typing it).
+    queued: everything else -- running, permission prompt, no bridge, or not open at all (delivered when it next runs)."""
+    text = re.sub(r"\s*\n\s*", " ", str(text or "").strip())
+    if not text:
+        raise ValueError("empty message")
+    if len(text) > 3900:
+        raise ValueError("message too long (> 3900 characters)")
+    s = live_sessions().get(sid)
+    if s and s.get("status") == "idle":
+        sp = parent_pid(s["pid"])
+        r = _bridge("/type", {"pid": sp, "text": "【desk · %s】%s" % (frm, text)}) if sp else {"ok": False, "why": "no terminal"}
+        if r.get("ok"):
+            os.makedirs(INBOX, exist_ok=True)
+            with open(os.path.join(INBOX, sid + ".done.jsonl"), "a", encoding="utf-8") as f:
+                f.write(json.dumps(dict(ts=_now(), frm=frm, text=text, mode="typed"), ensure_ascii=False) + "\n")
+            return {"ok": True, "mode": "typed", "why": ""}
+        why = "idle but could not type (%s)" % r.get("why")
+    else:
+        why = "session is %s" % ((s or {}).get("status") or "not open")
+    m = queue(sid, text, frm)
+    return {"ok": True, "mode": "queued", "id": m["id"], "why": why + "; queued, the inbox hook delivers it when the session next runs"}

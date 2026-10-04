@@ -39,6 +39,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 a{color:var(--blue-ink)}
 code{font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
 .shell{display:grid;grid-template-columns:var(--rail-w) minmax(0,1fr);min-height:100vh}
+/* drag the rail's right edge to resize it (kept in this browser); double-click to reset */
+#railDrag{position:fixed;top:0;left:calc(var(--rail-w) - 3px);width:7px;height:100vh;cursor:col-resize;z-index:40}
+#railDrag:hover,#railDrag.on{background:linear-gradient(90deg,transparent 2px,var(--pink) 2px,var(--pink) 4px,transparent 4px)}
+body.dragging{cursor:col-resize;user-select:none}
 /* rail */
 .rail{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;background:var(--rail);border-right:1px solid var(--line);min-width:0}
 .rhead{padding:12px 12px 8px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:7px}
@@ -169,6 +173,17 @@ mark{background:#ffe08a;color:#2b2a38;border-radius:3px;padding:0 1px}
 #drawer .df{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
 #drawer .df .sp{flex:1}
 .del.arm{background:var(--red-soft);border-color:var(--red);color:var(--red-ink)}
+/* xref.js: auto-links for URLs and file/folder paths (hover a path for its parent folders) */
+.xr-url{color:var(--pink-ink);text-decoration:underline;text-underline-offset:2px}
+.xr-path{text-decoration:underline dotted;text-decoration-color:var(--muted);text-underline-offset:2px;cursor:pointer}
+.xr-path:hover,.xr-url:hover{background:var(--hover)}
+.xr-gloss{text-decoration:underline dotted;cursor:help}
+.xtip{position:fixed;z-index:81;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:8px 11px;font-size:12.5px;line-height:1.5;word-break:break-word}
+.xtip .xm{color:var(--muted);font-size:11.5px}
+.xtip .xpath{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;margin:3px 0}
+.xtip .xpar,.xtip .xact{font-size:11.5px}.xtip .xpar a,.xtip .xact a{color:var(--pink-ink)}
+.mine textarea{width:100%;box-sizing:border-box;min-height:64px;resize:vertical;font:inherit;font-size:13.5px;line-height:1.6;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel);color:var(--ink)}
+.mine h3 .sv{font-weight:400;font-size:11.5px;color:var(--muted);margin-left:8px;text-transform:none;letter-spacing:0}
 #tip{position:fixed;z-index:80;max-width:min(480px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:8px 11px;font-size:12.5px;display:none;pointer-events:none}
 #tip .tm{color:var(--muted);font-size:11.5px;margin-bottom:3px}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);border-radius:999px;padding:6px 16px;font-size:13px;display:none;z-index:90;max-width:90vw}
@@ -178,6 +193,7 @@ mark{background:#ffe08a;color:#2b2a38;border-radius:3px;padding:0 1px}
   .rail{position:fixed;left:0;top:0;bottom:0;width:min(92vw,380px);transform:translateX(-102%);transition:transform .18s;z-index:60}
   .rail.open{transform:none}
   .mtoggle{display:inline-flex}
+  #railDrag{display:none}
   .pane{padding:16px 16px 90px}
   .row{grid-template-columns:auto 44px minmax(0,1fr)}
   .row .rc{display:none}
@@ -256,6 +272,7 @@ en:{
   k_cited_by:"Cited by", k_supersedes:"Supersedes", k_superseded_by:"Superseded by", retract:"Retract…", retract_reason:"Why is this retracted? (required)",
   retract_sup:"Superseded by which knowledge id? (optional, e.g. K007)", k_retracted_note:"Retracted %s. Tickets that still cite it are listed in the consistency check.",
   new_T:"New ticket", new_child:"New child of %s", new_K:"New knowledge entry", new_P:"New proposal", edit_x:"Edit %s",
+  mine:"My understanding", mine_hint:"saves as you type · only you write here", mine_ph:"In your own words: what this is really about, and what you think now", mine_editing:"editing…", mine_saved:"saved %s", mine_fail:"not saved: %s",
   f_title:"Title", f_status:"Status", f_priority:"Priority", f_parent:"Parent", top_level:"(top level)", f_question:"Question",
   f_question_ph:"The original wording, background, what to find out", f_answer_title:"Answer title", f_answer_title_ph:"One-line conclusion; empty if there is no answer yet",
   f_answer:"Answer", f_answer_ph:"Lines starting with \"- \" become bullets; lines starting with TODO are highlighted; T012 / P003 / K007 become links",
@@ -296,6 +313,7 @@ zh:{
   k_cited_by:"被引用", k_supersedes:"取代", k_superseded_by:"被取代为", retract:"撤回…", retract_reason:"为什么撤回？（必填）",
   retract_sup:"被哪条知识取代？（可空，如 K007）", k_retracted_note:"已于 %s 撤回。仍在引用它的 ticket 列在一致性检查里。",
   new_T:"新建 ticket", new_child:"新建 %s 的子 ticket", new_K:"新建知识条目", new_P:"新建提案", edit_x:"编辑 %s",
+  mine:"我的理解", mine_hint:"编辑即保存 · 只有你写", mine_ph:"用自己的话记下：这件事到底是什么、我现在怎么看", mine_editing:"编辑中…", mine_saved:"已保存 %s", mine_fail:"没存上：%s",
   f_title:"标题", f_status:"状态", f_priority:"优先级", f_parent:"上级 ticket", top_level:"（顶层）", f_question:"问题正文",
   f_question_ph:"原话、背景、想弄清什么", f_answer_title:"回答标题", f_answer_title_ph:"一句话结论；还没有答案就留空",
   f_answer:"回答正文", f_answer_ph:"以「- 」开头的行显示为要点；以 TODO / 待查 开头的行高亮；T012 / P003 / K007 自动成链接",
@@ -507,7 +525,23 @@ function renderHome(){
     ${tops.length?`<div class="box"><h3>${t("topics",tops.length)}</h3>${rows(tops)}</div>`:""}
     ${recent.length?`<div class="box"><h3>${t("recent")}</h3>${rows(recent)}</div>`:""}</div>`;
 }
+// "My understanding" box: saves 0.7 s after you stop typing (or on blur). A re-render while you type keeps text, caret and focus.
+let MINE_T = null;
+async function saveMine(id, v){
+  const sv = $("#mine_sv");
+  try{ await api(`/api/tickets/${id}`, {mine: v}); if(byId[id]) byId[id].mine = v; if(sv) sv.textContent = t("mine_saved", new Date().toTimeString().slice(0, 8)); }
+  catch(err){ if(sv) sv.textContent = t("mine_fail", err.message); }
+}
+document.addEventListener("input", e => { if(e.target.id !== "mine") return; const id = e.target.dataset.id, v = e.target.value; const sv = $("#mine_sv"); if(sv) sv.textContent = t("mine_editing");
+  clearTimeout(MINE_T); MINE_T = setTimeout(() => saveMine(id, v), 700); });
+document.addEventListener("focusout", e => { if(e.target.id === "mine"){ const id = e.target.dataset.id; if(byId[id] && e.target.value !== (byId[id].mine || "")){ clearTimeout(MINE_T); saveMine(id, e.target.value); } } });
 function renderTicket(x){
+  const a = document.activeElement, keep = a && a.id === "mine" ? {v: a.value, s: a.selectionStart, e: a.selectionEnd, id: a.dataset.id} : null;
+  renderTicket0(x);
+  const m = $("#mine"); if(m) m.dataset.id = x.id;
+  if(keep && keep.id === x.id && m){ m.value = keep.v; m.focus(); m.setSelectionRange(keep.s, keep.e); }
+}
+function renderTicket0(x){
   const cr = ancestorsOf(x.id).map(a=>`<a data-go="${a}">${a} ${esc(short(byId[a].title,24))}</a> ›`).join(" ");
   const ks=kids[x.id]||[], ds=descendants(x), ksv=filtering()?ks.filter(c=>VIS[c.id]):ks, sb=ds.length?statBar(ds):null;
   const kref = refsIn(x).filter(r=>r[0]==="K");
@@ -516,6 +550,7 @@ function renderTicket(x){
     `<div class="ph" data-st="${x.status}"><span class="pill click" data-act="cycle" title="${esc(t("click_status"))}">${t("st_"+x.status)}</span><span class="pill click plain" data-act="pcycle" title="${esc(t("click_pri"))}">${x.priority||t("no_pri")}</span>`+
     `<h2>${hl(esc(x.title))}<span class="id">${x.id}</span></h2><div class="acts"><button class="btn" data-act="edit">${t("edit")}</button><button class="btn" data-act="child">${t("child")}</button></div></div>`+
     metaHtml(x)+
+    `<div class="box mine"><h3>${t("mine")}<span class="sv" id="mine_sv">${esc(t("mine_hint"))}</span></h3><textarea id="mine" placeholder="${esc(t("mine_ph"))}">${esc(x.mine||"")}</textarea></div>`+
     (plain(x.question)?`<div class="box"><h3>${t("question")}</h3><div class="bd">${body(x.question)}</div></div>`:"")+
     `<div class="box" data-st="${x.status}"><h3>${t("answer")}</h3><div class="atitle">${hl(inline(x.answer_title||(plain(x.answer)?"":t("no_answer"))))}</div>${plain(x.answer)?`<div class="bd">${body(x.answer)}</div>`:""}</div>`+
     (rel.length?`<div class="box"><h3>${t("related_props",rel.length)}</h3>${rows(rel)}</div>`:"")+
@@ -602,6 +637,19 @@ let qh; $("#q").addEventListener("input", e=>{ clearTimeout(qh); qh=setTimeout((
 $("#home").onclick=()=>go(null);
 $("#lang").onclick=()=>{ LANG = LANG==="zh"?"en":"zh"; lsSet("td_lang",LANG); renderAll(); };
 $("#mtoggle").onclick=()=>$("#rail").classList.toggle("open");
+{ const d = document.createElement("div"); d.id = "railDrag"; d.title = "Drag to resize · double-click to reset"; document.body.appendChild(d);
+  const root = document.documentElement, KEY = "td_rail_w";
+  const setW = w => { w = Math.round(Math.max(220, Math.min(w, innerWidth * 0.7))); root.style.setProperty("--rail-w", w + "px"); return w; };
+  try{ const w = Number(localStorage.getItem(KEY)); if(w) setW(w); }catch(e){}
+  d.addEventListener("pointerdown", e => {
+    e.preventDefault(); d.setPointerCapture(e.pointerId); d.classList.add("on"); document.body.classList.add("dragging");
+    const mv = ev => setW(ev.clientX);
+    const up = ev => { d.removeEventListener("pointermove", mv); d.removeEventListener("pointerup", up); d.classList.remove("on"); document.body.classList.remove("dragging");
+      try{ localStorage.setItem(KEY, String(setW(ev.clientX))); }catch(err){} };
+    d.addEventListener("pointermove", mv); d.addEventListener("pointerup", up);
+  });
+  d.addEventListener("dblclick", () => { root.style.removeProperty("--rail-w"); try{ localStorage.removeItem(KEY); }catch(e){} });
+}
 $("#undo").onclick=async ()=>{ try{ await api("/api/undo",{}); toast(t("undone")); reload(); }catch(err){ toast(err.message); } };
 $("#new").onclick=()=>openDrawer(MODE, null, null);
 
@@ -758,5 +806,14 @@ reload().then(fromHash).catch(err=>{ $("#pane").innerHTML=`<div class="empty">${
 </script>
 <script src="/md.js"></script>
 <script src="/sessions.js"></script>
+<script src="/extras.js"></script>
+<script src="/xref.js"></script>
+<script>
+// Link URLs and file/folder paths wherever the pane re-renders (tickets, knowledge, Sessions tab).
+(() => { const pane = document.getElementById("pane"); let t = null;
+  const run = () => { if(window.XREF) XREF.apply(pane); };
+  new MutationObserver(() => { clearTimeout(t); t = setTimeout(run, 60); }).observe(pane, {childList: true, subtree: true});
+  run(); })();
+</script>
 </body>
 </html>

@@ -22,6 +22,10 @@ $DESK pdone P003 --summary @result.md
 $DESK kadd --title "one-sentence fact" --body … ; $DESK kretract K003 --reason … --superseded-by K004
 $DESK check
 $DESK handoff T012 T015 --name "<session name>"
+$DESK ask --title "Pin the cache key?" --situation "background, cost of each option" --options "pin|leave" --tickets T012 --session <session id>
+$DESK needs                       # what is waiting on the user
+$DESK eta T012 30                 # about 30 minutes left, clock starts now
+$DESK jadd --title … --result "… **conclusion that holds** …" --story … --why … --goal … --next … --tickets "T012 (cache key)" --session <id> --name <name>
 ```
 
 Long text: pass `@path`. Always pass `--session` on log commands (or export `DESK_SESSION`) so each
@@ -53,3 +57,10 @@ line traces back to its conversation.
 11. Handoff: write tickets first, then `handoff`; the new agent re-derives key numbers.
 12. Long replies start by restating the user's question in 1–3 lines, and end with the ticket ids
     touched and their links (`http://127.0.0.1:8750/#T012`).
+13. A decision only the user can make, and that blocks you, is an `ask` (with options when there are
+    any) instead of a question buried in a long reply. Pass `--session` so the answer comes back to
+    you: typed in when you are idle, or delivered by the inbox hook while you are working.
+14. When you start a piece of work with a known rough size, set the ETA clock once (`eta`).
+15. When a piece of work wraps up (delivered, handed off, session ending), write one journal entry in
+    plain words: story, why, goal, result, next; wrap conclusions that hold in `**…**`; every ticket id
+    you mention carries a few words in parentheses: `T012 (cache key)`.
