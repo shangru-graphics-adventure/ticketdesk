@@ -1,0 +1,13 @@
+{
+  "name": "ticketdesk-terminal-bridge",
+  "displayName": "ticketdesk terminal bridge",
+  "description": "Lets ticketdesk focus a Claude Code terminal tab, or type a reply into it, by the shell's process id. Binds 127.0.0.1 only.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "private": true,
+  "license": "MIT",
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js"
+}

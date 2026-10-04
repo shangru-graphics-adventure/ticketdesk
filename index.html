@@ -198,6 +198,7 @@ mark{background:#ffe08a;color:#2b2a38;border-radius:3px;padding:0 1px}
       <span class="tab on" data-mode="T"><span data-i="tab_T"></span><span class="n" id="n_T"></span></span>
       <span class="tab" data-mode="P"><span data-i="tab_P"></span><span class="n" id="n_P"></span></span>
       <span class="tab" data-mode="K"><span data-i="tab_K"></span><span class="n" id="n_K"></span></span>
+      <span class="tab" data-mode="S"><span data-i="tab_S"></span><span class="n" id="n_S"></span></span>
     </div>
     <div class="rrow" id="stchips"></div>
     <div class="rrow" id="prchips"></div>
@@ -755,5 +756,6 @@ window.addEventListener("hashchange", fromHash);
 applyI18n();
 reload().then(fromHash).catch(err=>{ $("#pane").innerHTML=`<div class="empty">${esc(t("load_fail",err.message))}</div>`; });
 </script>
+<script src="/sessions.js"></script>
 </body>
 </html>

@@ -348,6 +348,9 @@ def make_handler(store, runner, port):
             if p in ("/", "/index.html"):
                 with open(os.path.join(HERE, "index.html"), "rb") as f:
                     return self.send(200, f.read(), "text/html; charset=utf-8")
+            if p == "/sessions.js":
+                with open(os.path.join(HERE, "sessions.js"), "rb") as f:
+                    return self.send(200, f.read(), "text/javascript; charset=utf-8")
             if p == "/api/health":
                 return self.send(200, {"ok": True, "version": VERSION, "allow_run": bool(runner.allow and runner.dir)})
             with store.lock:
@@ -356,6 +359,9 @@ def make_handler(store, runner, port):
                 return self.send(200, d)
             if p == "/api/check":
                 return self.send(200, check(d))
+            if p == "/api/sessions":                       # live Claude Code sessions (sessions.py)
+                import sessions
+                return self.send(200, sessions.build(d))
             m = re.fullmatch(r"/api/(tickets|proposals|knowledge)/([TPK]\d+)", p)
             if m:
                 try:
@@ -380,6 +386,12 @@ def make_handler(store, runner, port):
                     raise ValueError("body must be a JSON object")
                 if p == "/api/undo":
                     return self.send(200, {"ok": True, "left": store.undo_last()})
+                m = re.fullmatch(r"/api/sessions/([0-9a-f-]{36})/(reply|focus)", p)
+                if m:
+                    import sessions
+                    sid, act = m.groups()
+                    r = sessions.reply(sid, str(b.get("text") or "")) if act == "reply" else sessions.focus(sid)
+                    return self.send(200 if r.get("ok") else 409, r if r.get("ok") else {"error": r.get("why") or "failed"})
                 m = re.fullmatch(r"/api/(tickets|proposals|knowledge)(?:/([TPK]\d+)(?:/(\w+))?)?", p)
                 if not m:
                     return self.send(404, {"error": "not found"})

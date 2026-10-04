@@ -55,6 +55,26 @@ Requires Python 3.8+. Works on Windows, macOS and Linux.
 - Keys: `/` search · `N` new · `E` edit · `Esc` up one level · `Ctrl+Z` undo (60 steps).
 - English and Chinese UI (`中` / `EN` button, or `?lang=zh`); light and dark themes.
 
+## Sessions tab (Claude Code)
+
+If you run Claude Code on the same machine, the **Sessions** tab lists every live session and what it is working on:
+
+- every prompt of the current turn, **including the questions you typed while it was busy** (they are read from the
+  session transcript, so they show up even when nobody made a ticket for them);
+- the tickets each one touches: `T012` written in a prompt, a bare `12` that matches an existing ticket (shown dashed,
+  as a guess), and every ticket the session logged to during the turn;
+- a prompt with no ticket gets a **Make ticket** button, which creates the ticket and links it to the session;
+- once the turn ends: the **key points** (Claude Code's own recap when there is one, otherwise the headings and list
+  items of the reply), the full reply, and a box to **reply right there**. The reply is typed into the session's
+  terminal, only when it is idle.
+
+It reads `~/.claude/sessions/*.json` and the transcripts under `~/.claude/projects/` (`CLAUDE_DIR` to change), never
+writes them. *Send* and *Go to terminal* need the small VS Code bridge in
+[`integrations/vscode`](integrations/vscode/README.md). The same folder has a hook that marks tabs waiting for you
+with ▶ without moving or switching tabs.
+
+![sessions tab](docs/sessions.png)
+
 ## The CLI (for agents)
 
 ```
@@ -109,6 +129,9 @@ All JSON. Writes need the header `X-Desk-Client: 1`.
 
 ```
 GET  /api/state                     everything            GET /api/check   consistency issues
+GET  /api/sessions                  live Claude Code sessions, their tasks, ticket refs and key points
+POST /api/sessions/<sid>/reply      {text}  type into an idle session's terminal (VS Code bridge)
+POST /api/sessions/<sid>/focus      bring its terminal into view
 GET  /api/{tickets|proposals|knowledge}/<id>
 POST /api/tickets                   create {title, question, answer_title, answer, status, priority, tags, links, source, parent}
 POST /api/tickets/<id>              partial update         POST /api/tickets/<id>/log    {text, session, name}
@@ -138,6 +161,9 @@ ticketdesk 是一个本地的 ticket 台，给「人 + 多个 AI agent」做长�
 ticket 才是跨对话的权威记录。三类记录：**Ticket**（可嵌套的问题/回答卡，带时间戳 + 会话 id + 会话名的日志）、
 **提案**（需要人批准的事，页面上点「批准 / 否决」，可选地批准即执行受控脚本）、**知识**（ticket 以 K 编号引用的事实，
 作废走「撤回 + 取代」，`desk.py check` 找出仍在引用已撤回事实的 ticket）。界面支持中英文切换（右上角「中 / EN」）。
+「对话」页签列出本机活着的 Claude Code 对话：每个对话这一轮的提问、**它运算时你插的问题**（没建 ticket 的也看得到，可一键建 ticket）、
+涉及的 ticket；一轮结束后显示要点，可直接在框里回答（经 VS Code 桥打进它的终端）。`integrations/vscode` 里的钩子会给等你回答的
+标签名前加 ▶ —— 不挪标签、不切标签、不闪。
 工作流规范见 [`docs/WORKFLOW.md`](docs/WORKFLOW.md)：先挂卡再动手、失败的尝试必须记、说出口的下一步当场入卡、
 P0 接着做不用问、P2 搁置写理由、交接走 ticket。
 
