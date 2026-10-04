@@ -348,8 +348,8 @@ def make_handler(store, runner, port):
             if p in ("/", "/index.html"):
                 with open(os.path.join(HERE, "index.html"), "rb") as f:
                     return self.send(200, f.read(), "text/html; charset=utf-8")
-            if p == "/sessions.js":
-                with open(os.path.join(HERE, "sessions.js"), "rb") as f:
+            if p in ("/sessions.js", "/md.js"):
+                with open(os.path.join(HERE, p[1:]), "rb") as f:
                     return self.send(200, f.read(), "text/javascript; charset=utf-8")
             if p == "/api/health":
                 return self.send(200, {"ok": True, "version": VERSION, "allow_run": bool(runner.allow and runner.dir)})

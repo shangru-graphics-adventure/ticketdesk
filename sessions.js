@@ -25,6 +25,7 @@ Object.assign(I18N.zh, {
   foot_S:"「发送」和「切到终端」需要 VS Code 桥（integrations/vscode）。", ago_s:"%d 秒前", ago_m:"%d 分钟前", ago_h:"%d 小时前",
 });
 STS.S = [];
+const mdLinkT = s => s.replace(/(^|[^A-Za-z0-9])([TPK]\d{3,})(?![A-Za-z0-9])/g, (m, pre, id) => pre + refHtml(id));
 let SESS = {rows:[]}, SDRAFT = {};
 const sWaiting = r => r.status!=="busy" && r.work && !r.work.turn_open;
 const sName = r => (r.work && r.work.title ? r.work.title+" · " : "") + (r.name || r.sid.slice(0,8));
@@ -50,8 +51,8 @@ function sCard(r){
   if(old.length) h += `<details class="wo"><summary>${t("w_earlier", old.length)}</summary>${old.map(([x,i])=>sTask(r,x,i)).join("")}</details>`;
   if(wait && ((w.points||[]).length || w.last_reply)){
     h += `<div class="wp"><div><b>${t("w_points")}</b> <span class="hint">${t("src_"+w.points_src)}${w.last_end?" · "+t("w_answered_ago", sAgo(w.last_end)):""}</span></div>`+
-      ((w.points||[]).length?`<ul>${w.points.map(p=>`<li>${inline(p)}</li>`).join("")}</ul>`:"")+
-      (w.last_reply?`<details><summary>${t("w_full")}</summary><div class="wb">${body(w.last_reply)}</div></details>`:"")+`</div>`;
+      ((w.points||[]).length?`<ul>${w.points.map(p=>`<li class="md">${mdInline(p, mdLinkT)}</li>`).join("")}</ul>`:"")+
+      (w.last_reply?`<details><summary>${t("w_full")}</summary><div class="wb md">${mdRender(w.last_reply, mdLinkT)}</div></details>`:"")+`</div>`;
   }
   if(wait && r.status==="idle") h += `<div class="wr"><textarea rows="2" id="sr_${r.sid}" placeholder="${esc(t("w_reply_ph", r.name||""))}">${esc(SDRAFT[r.sid]||"")}</textarea><button class="btn main" data-sk="send" data-sid="${r.sid}">${t("w_send")}</button></div>`;
   return h + `</div>`;

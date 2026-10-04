@@ -756,6 +756,7 @@ window.addEventListener("hashchange", fromHash);
 applyI18n();
 reload().then(fromHash).catch(err=>{ $("#pane").innerHTML=`<div class="empty">${esc(t("load_fail",err.message))}</div>`; });
 </script>
+<script src="/md.js"></script>
 <script src="/sessions.js"></script>
 </body>
 </html>
