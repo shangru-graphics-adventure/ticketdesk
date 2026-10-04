@@ -15,7 +15,9 @@
         .replace(/(^|[^*\w])\*([^*\s][^*\n]*?)\*(?!\w)/g, "$1<i>$2</i>")
         .replace(/~~([^~\n]+?)~~/g, "<s>$1</s>");
       return s.replace(/(<a [^>]*>.*?<\/a>)|([^<]+|<[^>]*>)/g, (m,a,txt)=> a ? a : (txt && txt[0]!=="<" ? link(txt) : txt));
-    }).join("");
+    }).join("")
+      // bold wrapping inline code (**`x`** or **text `x` text**): the backtick split puts the two ** in different segments; pair them up here, never inside code
+      .replace(/\*\*((?:(?!\*\*)[^\n])*?<code>[^<]*<\/code>(?:(?!\*\*)[^\n])*?)\*\*/g, "<b>$1</b>");
   }
   function cells(l){ return l.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim()); }
   function render(raw, link){
